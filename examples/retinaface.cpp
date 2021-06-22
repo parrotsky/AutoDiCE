@@ -1,6 +1,7 @@
 // Tencent is pleased to support the open source community by making ncnn available.
 //
-// Copyright (C) 2019 THL A29 Limited, a Tencent company. All rights reserved.
+// Copyright (C) 2020 THL A29 Limited, a Tencent company. All rights reserved.
+// Modifications Copyright (C) 2020 TANCOM SOFTWARE SOLUTIONS Ltd. All rights reserved.
 //
 // Licensed under the BSD 3-Clause License (the "License"); you may not use this file except
 // in compliance with the License. You may obtain a copy of the License at
@@ -19,6 +20,7 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <stdio.h>
 #include <vector>
+#include <chrono>
 
 struct FaceObject
 {
@@ -238,6 +240,13 @@ static int detect_retinaface(const cv::Mat& bgr, std::vector<FaceObject>& faceob
 
     retinaface.opt.use_vulkan_compute = true;
 
+#if NCNN_CUDA
+    std::shared_ptr<ncnn::CudaAllocator> cuda_allocator = ncnn::get_current_gpu_allocator();
+    retinaface.opt.use_cuda_compute = true;
+    retinaface.opt.blob_cuda_allocator = cuda_allocator;
+    retinaface.opt.workspace_cuda_allocator = cuda_allocator;
+#endif
+
     // model is converted from
     // https://github.com/deepinsight/insightface/tree/master/RetinaFace#retinaface-pretrained-models
     // https://github.com/deepinsight/insightface/issues/669
@@ -257,16 +266,42 @@ static int detect_retinaface(const cv::Mat& bgr, std::vector<FaceObject>& faceob
 
     ncnn::Extractor ex = retinaface.create_extractor();
 
+#if NCNN_CUDA
+
+    ncnn::CudaMat gpu_in{in, cuda_allocator};
+    ex.input("data", gpu_in);
+#else
     ex.input("data", in);
+#endif
 
     std::vector<FaceObject> faceproposals;
 
     // stride 32
     {
         ncnn::Mat score_blob, bbox_blob, landmark_blob;
-        ex.extract("face_rpn_cls_prob_reshape_stride32", score_blob);
-        ex.extract("face_rpn_bbox_pred_stride32", bbox_blob);
-        ex.extract("face_rpn_landmark_pred_stride32", landmark_blob);
+#if NCNN_CUDA
+        ncnn::CudaMat score_blob_gpu, bbox_blob_gpu, landmark_blob_gpu;
+        auto begin = std::chrono::high_resolution_clock::now();
+        ex.extract("face_rpn_cls_prob_reshape_stride32", score_blob_gpu);
+        ex.extract("face_rpn_bbox_pred_stride32", bbox_blob_gpu);
+        ex.extract("face_rpn_landmark_pred_stride32", landmark_blob_gpu);
+        score_blob = score_blob_gpu;
+        bbox_blob = bbox_blob_gpu;
+        landmark_blob = landmark_blob_gpu;
+        auto end = std::chrono::high_resolution_clock::now();
+        std::cout << "GPU CUDA Retinaface extraction execution time stride 32: " << std::chrono::duration_cast<std::chrono::microseconds>(end-begin).count()
+                  << " us" << std::endl;
+
+#else
+    auto begin = std::chrono::high_resolution_clock::now();
+    ex.extract("face_rpn_cls_prob_reshape_stride32", score_blob);
+    ex.extract("face_rpn_bbox_pred_stride32", bbox_blob);
+    ex.extract("face_rpn_landmark_pred_stride32", landmark_blob);
+    auto end = std::chrono::high_resolution_clock::now();
+    std::cout << "CPU Retinaface extraction execution time stride 32: " << std::chrono::duration_cast<std::chrono::microseconds>(end-begin).count()
+              << " us" << std::endl;
+#endif
+
 
         const int base_size = 16;
         const int feat_stride = 32;
@@ -286,9 +321,28 @@ static int detect_retinaface(const cv::Mat& bgr, std::vector<FaceObject>& faceob
     // stride 16
     {
         ncnn::Mat score_blob, bbox_blob, landmark_blob;
+#if NCNN_CUDA
+        ncnn::CudaMat score_blob_gpu, bbox_blob_gpu, landmark_blob_gpu;
+        auto begin2 = std::chrono::high_resolution_clock::now();
+        ex.extract("face_rpn_cls_prob_reshape_stride16", score_blob_gpu);
+        ex.extract("face_rpn_bbox_pred_stride16", bbox_blob_gpu);
+        ex.extract("face_rpn_landmark_pred_stride16", landmark_blob_gpu);
+        score_blob = score_blob_gpu;
+        bbox_blob = bbox_blob_gpu;
+        landmark_blob = landmark_blob_gpu;
+        auto end2 = std::chrono::high_resolution_clock::now();
+        std::cout << "GPU CUDA Retinaface extraction execution time stride 16: " << std::chrono::duration_cast<std::chrono::microseconds>(end2-begin2).count()
+                  << " us" << std::endl;
+
+#else
+        auto begin2 = std::chrono::high_resolution_clock::now();
         ex.extract("face_rpn_cls_prob_reshape_stride16", score_blob);
         ex.extract("face_rpn_bbox_pred_stride16", bbox_blob);
         ex.extract("face_rpn_landmark_pred_stride16", landmark_blob);
+        auto end2 = std::chrono::high_resolution_clock::now();
+        std::cout << "CPU Retinaface extraction execution time stride 16: " << std::chrono::duration_cast<std::chrono::microseconds>(end2-begin2).count()
+              << " us" << std::endl;
+#endif
 
         const int base_size = 16;
         const int feat_stride = 16;
@@ -308,9 +362,27 @@ static int detect_retinaface(const cv::Mat& bgr, std::vector<FaceObject>& faceob
     // stride 8
     {
         ncnn::Mat score_blob, bbox_blob, landmark_blob;
+#if NCNN_CUDA
+        ncnn::CudaMat score_blob_gpu, bbox_blob_gpu, landmark_blob_gpu;
+        auto begin3 = std::chrono::high_resolution_clock::now();
+        ex.extract("face_rpn_cls_prob_reshape_stride8", score_blob_gpu);
+        ex.extract("face_rpn_bbox_pred_stride8", bbox_blob_gpu);
+        ex.extract("face_rpn_landmark_pred_stride8", landmark_blob_gpu);
+        score_blob = score_blob_gpu;
+        bbox_blob = bbox_blob_gpu;
+        landmark_blob = landmark_blob_gpu;
+        auto end3 = std::chrono::high_resolution_clock::now();
+        std::cout << "GPU CUDA Retinaface extraction execution time stride 8: " << std::chrono::duration_cast<std::chrono::microseconds>(end3-begin3).count()
+                  << " us" << std::endl;
+#else
+        auto begin3 = std::chrono::high_resolution_clock::now();
         ex.extract("face_rpn_cls_prob_reshape_stride8", score_blob);
         ex.extract("face_rpn_bbox_pred_stride8", bbox_blob);
         ex.extract("face_rpn_landmark_pred_stride8", landmark_blob);
+        auto end3 = std::chrono::high_resolution_clock::now();
+        std::cout << "CPU Retinaface extraction execution time stride 8: " << std::chrono::duration_cast<std::chrono::microseconds>(end3-begin3).count()
+              << " us" << std::endl;
+#endif
 
         const int base_size = 16;
         const int feat_stride = 8;
