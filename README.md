@@ -159,7 +159,10 @@ ncnn 是一个为手机端极致优化的高性能神经网络前向计算框架
 ---
 
 ### Example project
- cmake -DNCNN_VULKAN=OFF -DNCNN_CUDA=ON -DLOG_LAYERS=ON -DCMAKE_CUDA_ARCHITECTURES=75 -DCMAKE_TOOLCHAIN_FILE=../toolchains/aarch64-linux-gnu.toolchain.cmake -DNCNN_OPENMP=OFF ..
+'''
+cmake -DNCNN_VULKAN=OFF -DNCNN_CUDA=ON -DLOG_LAYERS=ON -DCMAKE_CUDA_ARCHITECTURES=61 -DNCNN_BUILD_BENCHMARK=OFF -DNCNN_BUILD_EXAMPLES=ON ..
+cmake -DNCNN_VULKAN=OFF -DNCNN_CUDA=ON -DLOG_LAYERS=ON -DCMAKE_CUDA_ARCHITECTURES=75 -DCMAKE_TOOLCHAIN_FILE=../toolchains/aarch64-linux-gnu.toolchain.cmake -DNCNN_OPENMP=OFF ..
+'''
 * https://github.com/nihui/ncnn-android-squeezenet
 * https://github.com/nihui/ncnn-android-styletransfer
 * https://github.com/nihui/ncnn-android-mobilenetssd
