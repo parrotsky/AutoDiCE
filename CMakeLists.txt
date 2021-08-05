@@ -87,6 +87,7 @@ option(NCNN_BUILD_BENCHMARK "build benchmark" ON)
 option(NCNN_PYTHON "build python api" OFF)
 option(NCNN_INT8 "int8 inference" ON)
 option(NCNN_CUDA "cuda compute support" ON)
+option(NCNN_MPI "mpi/multinode support" ON) 
 
 
 if(ANDROID OR IOS OR NCNN_SIMPLESTL OR CMAKE_CROSSCOMPILING)
@@ -264,6 +265,17 @@ if(NCNN_CUDA)
     include_directories(${CUDAToolkit_INCLUDE_DIRS})
 endif()
 
+
+if(NCNN_MPI)
+    find_package(MPI REQUIRED)
+    SET (CMAKE_C_COMPILER  "/usr/local/bin/mpicxx")
+    SET (CMAKE_CXX_COMPILER  "/usr/local/bin/mpic++")
+    message(STATUS "Use MPI Compiler......True")
+    #set (USE_MPI True)
+    #    target_link_libraries(main ${MPI_C_LIBRARIES})
+    message(STATUS "Link with MPI libraries")
+
+endif(NCNN_MPI)
 
 
 add_subdirectory(src)

@@ -24,6 +24,7 @@
 #cmakedefine01 NCNN_BENCHMARK
 #cmakedefine01 NCNN_PLATFORM_API
 #cmakedefine01 NCNN_CUDA
+#cmakedefine01 NCNN_MPI
 #cmakedefine01 NCNN_PIXEL
 #cmakedefine01 NCNN_PIXEL_ROTATE
 #cmakedefine01 NCNN_PIXEL_AFFINE

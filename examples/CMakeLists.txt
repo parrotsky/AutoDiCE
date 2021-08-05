@@ -1,11 +1,20 @@
 macro(ncnn_add_example name)
+    SET (CMAKE_C_COMPILER  "/usr/local/bin/mpicxx")
+    SET (CMAKE_CXX_COMPILER  "/usr/local/bin/mpic++")
+set(CMAKE_CXX_FLAGS "-fopenmp")
+set(CMAKE_C_FLAGS "-fopenmp")
+
+
     add_executable(${name} ${name}.cpp)
     target_include_directories(${name} PRIVATE ${OpenCV_INCLUDE_DIRS})
     target_link_libraries(${name} PRIVATE ncnn ${OpenCV_LIBS})
+    target_link_libraries(${name} PUBLIC MPI::MPI_CXX)
 
     # add test to a virtual project group
     set_property(TARGET ${name} PROPERTY FOLDER "examples")
 endmacro()
+# MPI
+find_package(MPI REQUIRED)
 
 find_package(OpenCV QUIET COMPONENTS opencv_world)
 # for opencv 2.4 on ubuntu 16.04, there is no opencv_world but OpenCV_FOUND will be TRUE
@@ -36,7 +45,7 @@ else()
     include_directories(${CMAKE_CURRENT_BINARY_DIR}/../src)
      include_directories(${CUDAToolkit_INCLUDE_DIRS})
 
-
+    ncnn_add_example(hello)
     ncnn_add_example(squeezenet)
     ncnn_add_example(squeezenet_c_api)
     ncnn_add_example(fasterrcnn)

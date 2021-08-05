@@ -3,10 +3,15 @@ if(MSVC)
     # warning C4996: 'fopen': This function or variable may be unsafe. Consider using fopen_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
     add_definitions(/wd4996)
 endif()
-
 macro(ncnn_add_test name)
+        SET (CMAKE_C_COMPILER  "/usr/local/bin/mpicxx")
+    SET (CMAKE_CXX_COMPILER  "/usr/local/bin/mpic++")
+set(CMAKE_CXX_FLAGS "-fopenmp")
+set(CMAKE_C_FLAGS "-fopenmp")
+
     add_executable(test_${name} test_${name}.cpp)
     target_link_libraries(test_${name} PRIVATE ncnn)
+    target_link_libraries(test_${name} PUBLIC MPI::MPI_CXX)
 
     add_test(NAME test_${name} COMMAND ${CMAKE_COMMAND} -DTEST_EXECUTABLE=$<TARGET_FILE:test_${name}> -P ${CMAKE_CURRENT_SOURCE_DIR}/../cmake/run_test.cmake)
 
@@ -23,6 +28,7 @@ macro(ncnn_add_layer_test class)
     endif()
 endmacro()
 
+find_package(MPI REQUIRED)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../src)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../src/layer)
 
@@ -83,6 +89,7 @@ ncnn_add_layer_test(LSTM)
 ncnn_add_layer_test(MemoryData)
 ncnn_add_layer_test(Mish)
 ncnn_add_layer_test(MultiHeadAttention)
+ncnn_add_layer_test(MyLayer)
 ncnn_add_layer_test(Noop)
 ncnn_add_layer_test(Normalize)
 ncnn_add_layer_test(Packing)

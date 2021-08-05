@@ -28,6 +28,7 @@
 #include "option.h"
 #include "platform.h"
 
+#include <memory>
 #if NCNN_CUDA
 #include <assert.h>
 #include <memory>

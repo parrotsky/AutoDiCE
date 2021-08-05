@@ -21,7 +21,13 @@
 #include "paramdict.h"
 #include "platform.h"
 
+#include <memory>
+#include <iostream>
 #include <math.h>
+
+#if NCNN_MPI
+#include <mpi.h>
+#endif
 
 #if NCNN_VULKAN
 #include "command.h"
@@ -126,6 +132,12 @@ public:
     // return 0 if success
     virtual int forward_inplace(std::vector<Mat>& bottom_top_blobs, const Option& opt) const;
     virtual int forward_inplace(Mat& bottom_top_blob, const Option& opt) const;
+
+#if NCNN_MPI
+public:
+    int irank;
+    int nrank;
+#endif
 
 #if NCNN_VULKAN
 public:
