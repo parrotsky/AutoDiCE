@@ -135,6 +135,8 @@ ncnn_add_layer(DeepCopy)
 ncnn_add_layer(Mish)
 ncnn_add_layer(StatisticsPooling)
 ncnn_add_layer(Swish)
+ncnn_add_layer(Receiver)
+ncnn_add_layer(Sender)
 ncnn_add_layer(Gemm)
 ncnn_add_layer(GroupNorm)
 ncnn_add_layer(LayerNorm)
@@ -202,6 +204,11 @@ target_include_directories(ncnn
     PRIVATE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/layer>)
 
+if(NCNN_MPI)
+    find_package(MPI)
+    message("Building with MPI")
+
+endif()
 if(NCNN_OPENMP)
     if(NOT NCNN_SIMPLEOMP)
         find_package(OpenMP)

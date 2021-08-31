@@ -12,32 +12,32 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef LAYER_MYLAYER_H
-#define LAYER_MYLAYER_H
+#ifndef LAYER_RECEIVER_H
+#define LAYER_RECEIVER_H
 
 #include "layer.h"
 
 namespace ncnn {
 
-class MyLayer : public Layer
+class Receiver : public Layer
 {
 public:
-    MyLayer();
+    Receiver();
 
     virtual int load_param(const ParamDict& pd);
 
     virtual int load_model(const ModelBin& mb);
 
-    virtual int forward_inplace(std::vector<Mat>& bottom_top_blobs, const Option& opt) const;
-    virtual int forward_inplace(Mat& bottom_top_blob, const Option& opt) const;
+//    virtual int forward_inplace(std::vector<Mat>& bottom_top_blobs, const Option& opt) const;
+    virtual int forward(const Mat& bottom_top_blob, Mat& top_blob, const Option& opt) const;
 
 public:
 //    // param
-    int comm_id;
-    int counts;
-//    int scale_data_size;
-//    int bias_term;
-//
+    int src_rank;
+    int size;      // communication data size
+    int node_nums;
+    Mat node_list; // communication nodes number list
+
 //    // model
 //    Mat scale_data;
 //    Mat bias_data;
@@ -45,4 +45,4 @@ public:
 
 } // namespace ncnn
 
-#endif // LAYER_MYLAYER_H
+#endif // LAYER_SCALE_H

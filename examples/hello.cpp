@@ -1,4 +1,5 @@
 #if NCNN_MPI
+
 #include <mpi.h>
 #include <memory>
 #include <iostream>
@@ -30,7 +31,10 @@
 
 int main(int argc, char** argv) {
   int numprocs, rank, namelen;
+#if NCNN_MPI
+
   char processor_name[MPI_MAX_PROCESSOR_NAME];
+#endif
   int iam = 0, np = 2;
     int i, online=0;
   ulong ncores = sysconf(_SC_NPROCESSORS_CONF);
@@ -54,6 +58,7 @@ int main(int argc, char** argv) {
    ncnn::set_cpu_powersave(0);
     ncnn::set_omp_num_threads(1);
   omp_set_num_threads(1);
+#if NCNN_MPI
 
   MPI_Init(&argc, &argv);
   MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
@@ -71,8 +76,9 @@ int main(int argc, char** argv) {
            iam, np, rank, numprocs, processor_name);
   }
 
-  MPI_Finalize();
 
+  MPI_Finalize();
+#endif
 
 //    ncnn::set_cpu_powersave(0);
 //

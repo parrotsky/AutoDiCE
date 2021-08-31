@@ -1,6 +1,6 @@
 macro(ncnn_add_example name)
-    SET (CMAKE_C_COMPILER  "/usr/local/bin/mpicxx")
-    SET (CMAKE_CXX_COMPILER  "/usr/local/bin/mpic++")
+            SET (CMAKE_C_COMPILER  "/usr/local/bin/mpicxx")
+     SET (CMAKE_CXX_COMPILER  "/usr/local/bin/mpic++")
 set(CMAKE_CXX_FLAGS "-fopenmp")
 set(CMAKE_C_FLAGS "-fopenmp")
 
@@ -46,6 +46,7 @@ else()
      include_directories(${CUDAToolkit_INCLUDE_DIRS})
 
     ncnn_add_example(hello)
+    ncnn_add_example(resnet)
     ncnn_add_example(squeezenet)
     ncnn_add_example(squeezenet_c_api)
     ncnn_add_example(fasterrcnn)

@@ -18,13 +18,14 @@ namespace ncnn {
 
 MyLayer::MyLayer()
 {
+    #if NCNN_MPI
     nrank = MPI::COMM_WORLD.Get_size();
     irank = MPI::COMM_WORLD.Get_rank();
+    #endif
     one_blob_only = true;
     support_inplace = true;
 }
 
-/*
 int MyLayer::load_param(const ParamDict& pd)
 {
 
@@ -43,22 +44,24 @@ int MyLayer::forward_inplace(std::vector<Mat>& bottom_top_blobs, const Option& o
 
     return 0;
 }
-*/
+
 int MyLayer::forward_inplace(Mat& bottom_top_blob, const Option& opt) const
 {
     //int a = get_world_id();
+#if NCNN_MPI
     int number;
-if (irank == 0) {
-    number = 145;
-    MPI_Send(&number, 1, MPI_INT, 1, 0, MPI_COMM_WORLD);
-} else if (irank == 1) {
-    MPI_Recv(&number, 1, MPI_INT, 0, 0, MPI_COMM_WORLD,
-             MPI_STATUS_IGNORE);
-    printf("Process 1 received number %d from process 0\n",
-           number);
-}
+    if (irank == 0) {
+        number = 145;
+        MPI_Send(&number, 1, MPI_INT, 1, 0, MPI_COMM_WORLD);
+    } else if (irank == 1) {
+        MPI_Recv(&number, 1, MPI_INT, 0, 0, MPI_COMM_WORLD,
+                MPI_STATUS_IGNORE);
+        printf("Process 1 received number %d from process 0\n",
+                number);
+    }
 
     printf( "mylayer is not implement.irank: %d out from %d processors \n", irank, nrank);    
+#endif
     return 0;
 }
 
