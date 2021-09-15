@@ -20,47 +20,6 @@
 #include <stdio.h>
 #include <vector>
 
-static int detect_resnet(const cv::Mat& bgr, std::vector<float>& cls_scores)
-{
-    ncnn::Net resnet;
-
-    resnet.opt.use_vulkan_compute = true;
-
-    // the ncnn model https://github.com/nihui/ncnn-assets/tree/master/models
-    resnet.load_param("resnet-50.param");
-    resnet.load_model("resnet-50.bin");
-
-
-                                         
-    ncnn::Mat in = ncnn::Mat::from_pixels_resize(bgr.data, ncnn::Mat::PIXEL_BGR, bgr.cols, bgr.rows, 224, 224);
-                                         
-    const float mean_vals[3] = {127.5f, 127.5f, 127.5f};
-    const float norm_vals[3] = {1.0 / 127.5, 1.0 / 127.5, 1.0 / 127.5};
-    in.substract_mean_normalize(mean_vals, norm_vals);
-                                         
-//const float std_vals[3] = {57.0f, 57.0f, 58.0f};
-
-    //const float std_vals[3] = {0.225f, 0.224f,0.229f};
-    //in.substract_mean_normalize(mean_vals, std_vals);
-    ncnn::Extractor ex = resnet.create_extractor();
-
-    ex.input("data", in);
-
-    ncnn::Mat out;
-//ex.extract("resnetv17_dense0_fwd", out);
-
-    ex.extract("resnetv24_dense0_fwd", out);
-    std::cout <<"output size: "<< out.total()<< std::endl;
-    //ex.extract("resnetv24_stage4_activation8", out);
-    cls_scores.resize(out.w);
-    for (int j = 0; j < out.w; j++)
-    {
-        cls_scores[j] = out[j];
-    }
-
-    return 0;
-}
-
 static int print_topk(const std::vector<float>& cls_scores, int topk)
 {
     // partial sort topk with index
@@ -86,6 +45,51 @@ static int print_topk(const std::vector<float>& cls_scores, int topk)
     return 0;
 }
 
+static int alexnet(const cv::Mat& bgr, std::vector<float>& cls_scores)
+{
+    ncnn::Net alexnet;
+
+    alexnet.opt.use_vulkan_compute = true;
+
+    // the ncnn model https://github.com/nihui/ncnn-assets/tree/master/models
+    alexnet.load_param("alexnet.param");
+    alexnet.load_model("alexnet.bin");
+
+
+                                         
+    ncnn::Mat in = ncnn::Mat::from_pixels_resize(bgr.data, ncnn::Mat::PIXEL_BGR, bgr.cols, bgr.rows, 224, 224);
+                                         
+    const float mean_vals[3] = {127.5f, 127.5f, 127.5f};
+    const float norm_vals[3] = {1.0 / 127.5, 1.0 / 127.5, 1.0 / 127.5};
+    in.substract_mean_normalize(mean_vals, norm_vals);
+                                         
+//const float std_vals[3] = {57.0f, 57.0f, 58.0f};
+
+    //const float std_vals[3] = {0.225f, 0.224f,0.229f};
+    //in.substract_mean_normalize(mean_vals, std_vals);
+    ncnn::Extractor ex = alexnet.create_extractor();
+
+    ex.input("data_0", in);
+
+    ncnn::Mat out;
+//ex.extract("alexnetv17_dense0_fwd", out);
+
+    //ex.extract("conv1_2", out);
+    ex.extract("prob_1", out);
+
+    //ex.extract("alexnetv24_stage4_activation8", out);
+    cls_scores.resize(out.w);
+    for (int j = 0; j < out.w; j++)
+    {
+        cls_scores[j] = out[j];
+    }
+
+    print_topk(cls_scores, 3);
+
+    return 0;
+}
+
+
 int main(int argc, char** argv)
 {
     if (argc != 2)
@@ -104,9 +108,8 @@ int main(int argc, char** argv)
     }
 
     std::vector<float> cls_scores;
-    detect_resnet(m, cls_scores);
+    alexnet(m, cls_scores);
 
-    print_topk(cls_scores, 3);
 
     return 0;
 }

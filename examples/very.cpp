@@ -27,8 +27,8 @@ static int detect_resnet(const cv::Mat& bgr, std::vector<float>& cls_scores)
     resnet.opt.use_vulkan_compute = true;
 
     // the ncnn model https://github.com/nihui/ncnn-assets/tree/master/models
-    resnet.load_param("resnet-50.param");
-    resnet.load_model("resnet-50.bin");
+    resnet.load_param("very.param");
+    resnet.load_model("very.bin");
 
 
                                          
@@ -44,20 +44,20 @@ static int detect_resnet(const cv::Mat& bgr, std::vector<float>& cls_scores)
     //in.substract_mean_normalize(mean_vals, std_vals);
     ncnn::Extractor ex = resnet.create_extractor();
 
-    ex.input("data", in);
+    ex.input("data_0", in);
 
     ncnn::Mat out;
 //ex.extract("resnetv17_dense0_fwd", out);
 
-    ex.extract("resnetv24_dense0_fwd", out);
+    ex.extract("conv1_2", out);
     std::cout <<"output size: "<< out.total()<< std::endl;
     //ex.extract("resnetv24_stage4_activation8", out);
-    cls_scores.resize(out.w);
-    for (int j = 0; j < out.w; j++)
-    {
-        cls_scores[j] = out[j];
-    }
-
+//    cls_scores.resize(out.w);
+//    for (int j = 0; j < out.w; j++)
+//    {
+//        cls_scores[j] = out[j];
+//    }
+//
     return 0;
 }
 
@@ -106,7 +106,7 @@ int main(int argc, char** argv)
     std::vector<float> cls_scores;
     detect_resnet(m, cls_scores);
 
-    print_topk(cls_scores, 3);
+    //print_topk(cls_scores, 3);
 
     return 0;
 }
