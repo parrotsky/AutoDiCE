@@ -1,6 +1,6 @@
 macro(ncnn_add_example name)
-            SET (CMAKE_C_COMPILER  "/usr/local/bin/mpicxx")
-     SET (CMAKE_CXX_COMPILER  "/usr/local/bin/mpic++")
+     SET (CMAKE_C_COMPILER  "mpicxx")
+     SET (CMAKE_CXX_COMPILER  "mpic++")
 set(CMAKE_CXX_FLAGS "-fopenmp")
 set(CMAKE_C_FLAGS "-fopenmp")
 
