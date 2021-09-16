@@ -161,6 +161,7 @@ ncnn 是一个为手机端极致优化的高性能神经网络前向计算框架
 ### Example project
 #### 编译的指令
 '''
+sudo apt install libopenmpi-dev libopenmpi2:arm64  openmpi-bin openmpi-common
 cmake -DNCNN_VULKAN=OFF -DNCNN_CUDA=ON -DLOG_LAYERS=ON -DCMAKE_CUDA_ARCHITECTURES=61 -DNCNN_BUILD_BENCHMARK=OFF -DNCNN_BUILD_EXAMPLES=ON ..
 cmake -DNCNN_VULKAN=OFF -DNCNN_CUDA=ON -DLOG_LAYERS=ON -DCMAKE_CUDA_ARCHITECTURES=75 -DCMAKE_TOOLCHAIN_FILE=../toolchains/aarch64-linux-gnu.toolchain.cmake -DNCNN_OPENMP=OFF ..
 cmake -DNCNN_VULKAN=OFF -DNCNN_CUDA=OFF -DNCNN_MPI=ON -DCMAKE_TOOLCHAIN_FILE=../toolchains/tx2.toolchain.cmake -DNCNN_BUILD_EXAMPLES=ON ..
