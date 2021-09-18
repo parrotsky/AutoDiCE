@@ -269,7 +269,11 @@ endif()
 if(NCNN_MPI)
     find_package(MPI REQUIRED)
     SET (CMAKE_C_COMPILER  "mpicxx")
+<<<<<<< HEAD
     SET (CMAKE_CXX_COMPILER  "mpic++")
+=======
+    SET (CMAKE_CXX_COMPILER "mpic++")
+>>>>>>> 00a36aaf5cf814b99758dd19ba8cdb118833e8ba
     message(STATUS "Use MPI Compiler......True")
     #set (USE_MPI True)
     #    target_link_libraries(main ${MPI_C_LIBRARIES})
