@@ -24,27 +24,27 @@
 #include <vector>
 #include <string>
 
-static int detect_alexnet(const cv::Mat& bgr, std::vector<float>& cls_scores)
+static int detect_squeezenet(const cv::Mat& bgr, std::vector<float>& cls_scores)
 {
-    ncnn::Net alexnet;
+    ncnn::Net squeezenet;
 
-    alexnet.opt.use_vulkan_compute = true;
+    squeezenet.opt.use_vulkan_compute = true;
 
     // the ncnn model https://github.com/nihui/ncnn-assets/tree/master/models
-    alexnet.load_param("alexnet.param");
-    alexnet.load_model("alexnet.bin");
+    squeezenet.load_param("squeezenet_v1.1.param");
+    squeezenet.load_model("squeezenet_v1.1.bin");
 
     ncnn::Mat in = ncnn::Mat::from_pixels_resize(bgr.data, ncnn::Mat::PIXEL_BGR, bgr.cols, bgr.rows, 227, 227);
 
     const float mean_vals[3] = {104.f, 117.f, 123.f};
     in.substract_mean_normalize(mean_vals, 0);
 
-    ncnn::Extractor ex = alexnet.create_extractor();
+    ncnn::Extractor ex = squeezenet.create_extractor();
 
-    ex.input("data_0", in);
+    ex.input("data", in);
 
     ncnn::Mat out;
-    ex.extract("prob_1", out);
+    ex.extract("prob", out);
 
     cls_scores.resize(out.w);
     for (int j = 0; j < out.w; j++)
@@ -134,7 +134,7 @@ int main(int argc, char** argv)
     }
 
     std::vector<float> cls_scores;
-    detect_alexnet(m, cls_scores);
+    detect_squeezenet(m, cls_scores);
     std::vector<int> index;
     std::vector<float> score;
     print_topk(cls_scores, 3, index, score);

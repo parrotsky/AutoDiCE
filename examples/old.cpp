@@ -2,42 +2,11 @@
 #include <algorithm>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
-#include <opencv2/opencv.hpp>
-#include <opencv2/core.hpp>
-#include <opencv2/imgproc.hpp>
-#include <opencv2/highgui.hpp>
-#include <opencv2/videoio.hpp>
 #include <stdio.h>
 #include <vector>
 #include <mpi.h>
 
-static int load_labels(std::string path, std::vector<std::string>& labels)
-{    
-    FILE* fp = fopen(path.c_str(), "r");
-     
-    while (!feof(fp))
-    {
-        char str[1024];
-        fgets(str, 1024, fp);  
-        std::string str_s(str);
-     
-        if (str_s.length() > 0)
-        {
-            for (int i = 0; i < str_s.length(); i++)
-            {
-                if (str_s[i] == ' ')
-                {
-                    std::string strr = str_s.substr(i, str_s.length() - i - 1);
-                    labels.push_back(strr);
-                    i = str_s.length();
-                }
-            }
-        }
-    }
-    return 0;
-}    
-//static int print_topk(const std::vector<float>& cls_scores, int topk)
-static int print_topk(const std::vector<float>& cls_scores, int topk, std::vector<int>& index_result, std::vector<float>& score_result)
+static int print_topk(const std::vector<float>& cls_scores, int topk)
 {   
     // partial sort topk with index
     int size = cls_scores.size();
@@ -57,8 +26,6 @@ static int print_topk(const std::vector<float>& cls_scores, int topk, std::vecto
         float score = vec[i].first;
         int index = vec[i].second;
         fprintf(stderr, "%d = %f\n", index, score);
-        index_result.push_back(index);
-        score_result.push_back(score);
     }
 
     return 0;
@@ -67,8 +34,8 @@ static int print_topk(const std::vector<float>& cls_scores, int topk, std::vecto
 static int multi_classify(const cv::Mat& bgr, std::vector<float>& cls_scores)
 {
 int irank = MPI::COMM_WORLD.Get_rank();
-MPI_Request requests[2];
-MPI_Status status[2];
+MPI_Request requests[6];
+MPI_Status status[6];
 
 if(irank==0){
     ncnn::Net tx01conv1_2;
@@ -78,33 +45,78 @@ if(irank==0){
     ncnn::Extractor exconv1_2 = tx01conv1_2.create_extractor();
 
     ncnn::Mat in = ncnn::Mat::from_pixels_resize(bgr.data, ncnn::Mat::PIXEL_BGR, bgr.cols, bgr.rows, 224, 224);
-    const float mean_vals[3] = {104.f, 117.f, 123.f};
-    in.substract_mean_normalize(mean_vals, 0);
+    const float mean_vals[3] = {127.5f, 127.5f, 127.5f};
+    const float norm_vals[3] = {1.0 / 127.5, 1.0 / 127.5, 1.0 / 127.5};
+    in.substract_mean_normalize(mean_vals, norm_vals);
+
     exconv1_2.input("data_0", in);
 
     ncnn::Mat conv1_2;
 
     exconv1_2.extract("conv1_2", conv1_2);
-    MPI_Isend((float* )conv1_2, conv1_2.total(), MPI_FLOAT, 1, 
+    MPI_Isend((float* )conv1_2, conv1_2.total(), MPI_FLOAT, 2, 
         0, MPI_COMM_WORLD, &requests[0]);
 
     MPI_Wait(&requests[0], &status[0]);
  }
 
 if(irank==1){
+    ncnn::Mat conv2_2(26, 26, 256);
+
+    MPI_Irecv((float* )conv2_2, conv2_2.total(), MPI_FLOAT, 2, 
+        2, MPI_COMM_WORLD, &requests[5]);
+
+    ncnn::Net tx02norm2_1;
+    tx02norm2_1.load_param("tx02norm2_1.param");
+    tx02norm2_1.load_model("tx02norm2_1.bin");
+
+    ncnn::Extractor exnorm2_1 = tx02norm2_1.create_extractor();
+
+    MPI_Wait(&requests[5], &status[5]);
+    exnorm2_1.input("conv2_2", conv2_2);
+    ncnn::Mat norm2_1;
+
+    exnorm2_1.extract("norm2_1", norm2_1);
+    MPI_Isend((float* )norm2_1, norm2_1.total(), MPI_FLOAT, 2, 
+        1, MPI_COMM_WORLD, &requests[1]);
+
+    MPI_Wait(&requests[1], &status[1]);
+ }
+
+if(irank==2){
+    ncnn::Mat norm2_1(26, 26, 256);
+
+    MPI_Irecv((float* )norm2_1, norm2_1.total(), MPI_FLOAT, 1, 
+        1, MPI_COMM_WORLD, &requests[4]);
+
     ncnn::Mat conv1_2(54, 54, 96);
 
     MPI_Irecv((float* )conv1_2, conv1_2.total(), MPI_FLOAT, 0, 
-        0, MPI_COMM_WORLD, &requests[1]);
+        0, MPI_COMM_WORLD, &requests[3]);
 
-    ncnn::Net tx02prob_1;
-    tx02prob_1.load_param("tx02prob_1.param");
-    tx02prob_1.load_model("tx02prob_1.bin");
+    ncnn::Net nx01conv2_2;
+    nx01conv2_2.load_param("nx01conv2_2.param");
+    nx01conv2_2.load_model("nx01conv2_2.bin");
 
-    ncnn::Extractor exprob_1 = tx02prob_1.create_extractor();
+    ncnn::Extractor exconv2_2 = nx01conv2_2.create_extractor();
 
-    MPI_Wait(&requests[1], &status[1]);
-    exprob_1.input("conv1_2", conv1_2);
+    MPI_Wait(&requests[3], &status[3]);
+    exconv2_2.input("conv1_2", conv1_2);
+    ncnn::Mat conv2_2;
+
+    exconv2_2.extract("conv2_2", conv2_2);
+    MPI_Isend((float* )conv2_2, conv2_2.total(), MPI_FLOAT, 1, 
+        2, MPI_COMM_WORLD, &requests[2]);
+
+    MPI_Wait(&requests[2], &status[2]);
+    ncnn::Net nx01prob_1;
+    nx01prob_1.load_param("nx01prob_1.param");
+    nx01prob_1.load_model("nx01prob_1.bin");
+
+    ncnn::Extractor exprob_1 = nx01prob_1.create_extractor();
+
+    MPI_Wait(&requests[4], &status[4]);
+    exprob_1.input("norm2_1", norm2_1);
     ncnn::Mat prob_1;
 
     exprob_1.extract("prob_1", prob_1);
@@ -115,15 +127,8 @@ if(irank==1){
         cls_scores[j] = prob_1[j];
     }
 
-    std::vector<std::string> labels;
-    load_labels("synset_words.txt", labels);
-    std::vector<int> index;
-    std::vector<float> score;
-    print_topk(cls_scores, 3, index, score);
-    for (int i = 0; i < index.size(); i++)
-    {
-        fprintf(stderr, "%s \n", labels[index[i]].c_str());
-    }
+    print_topk(cls_scores, 3);
+
  }
 
 return 0;
