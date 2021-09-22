@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 import onnx
 from onnx import helper, checker
 import re
@@ -30,9 +31,12 @@ def onnx_ncnn(origin_model, mapping_file, platform_file):
     platform_mapping = load_json(mapping_file)
     engine_num = len(list(platform_mapping))
     input_tensor_dict = {}
+    mapping_node_name_list =[]
     for key, value in platform_mapping.items():    
         onnx_extract(origin_model, './models/'+key+'.onnx', value)
         input_tensor_dict[key] =  getInputlayers('./models/'+key+'.onnx')
+        for node_name in value:
+            mapping_node_name_list.append(node_name)
     input_tensors_jsonFile = open('./models/input_tensors_list.json', "w")
     input_tensors_content = json.dumps(input_tensor_dict)
     input_tensors_jsonFile.write(input_tensors_content)
@@ -42,6 +46,19 @@ def onnx_ncnn(origin_model, mapping_file, platform_file):
     
     platform_list = list(platform_dict)
     
+    ###########################3
+    ####检查mapping是否完整
+    ### check consistency of model mapping
+    graph = load_onnx(origin_model)
+    node_map = generate_node_dict(graph.node)
+    mapping_node_name_list = set(mapping_node_name_list)
+    node_map_list = set (list (node_map))
+    if (node_map_list ^ mapping_node_name_list):
+        print ("Consistency Check Fail.")
+        if (mapping_node_name_list - node_map_list):
+            print ("Original model doesn't contain: ", mapping_node_name_list - node_map_list)
+        if (node_map_list - mapping_node_name_list):
+            print ("Given mapping file require nodes: ", node_map_list - mapping_node_name_list)
     
     #对于每个engine的node
     for i in range(engine_num):
