@@ -2836,9 +2836,16 @@ int main(int argc, char** argv)
         return -1;
     }
 
+    std::string path = argv[1];
+    std::string name =path.substr(0,path.rfind("."));
+    std::string output_model = name+".bin";
+    std::string output_param = name+".param";
+     
     const char* onnxpb = argv[1];
-    const char* ncnn_prototxt = argc == 4 ? argv[2] : "ncnn.param";
-    const char* ncnn_modelbin = argc == 4 ? argv[3] : "ncnn.bin";
+    const char* ncnn_prototxt = argc == 4 ? argv[2] : output_param.c_str();
+    const char* ncnn_modelbin = argc == 4 ? argv[3] : output_model.c_str();
+
+
 
     onnx::ModelProto model;
 
