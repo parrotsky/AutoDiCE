@@ -375,8 +375,7 @@ def onnx_ncnn(origin_model, mapping_file, platform_file):
             engine_name = platform[i] + j +'.onnx'
             net_name = platform[i] + j
             input_list = getInputlayers('./models/'+platform[i]+j+'.onnx')
-            for per_input in input_list:
-                cpp("    ncnn::Extractor ex"+str(j)+" = "+str(net_name)+".create_extractor();\n")
+            cpp("    ncnn::Extractor ex"+str(j)+" = "+str(net_name)+".create_extractor();\n")
             
             for per_input in input_list:
                 #cpp("    ex"+str(j)+" = "+str(net_name)+".create_extractor();\n")
