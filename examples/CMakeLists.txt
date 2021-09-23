@@ -1,8 +1,8 @@
 macro(ncnn_add_example name)
      SET (CMAKE_C_COMPILER  "mpicxx")
      SET (CMAKE_CXX_COMPILER  "mpic++")
-set(CMAKE_CXX_FLAGS "-fopenmp")
-set(CMAKE_C_FLAGS "-fopenmp")
+set(CMAKE_CXX_FLAGS "-fopenmp -fexceptions")
+set(CMAKE_C_FLAGS "-fopenmp -fexceptions")
 
 
     add_executable(${name} ${name}.cpp)
