@@ -200,13 +200,10 @@ def onnx_ncnn(origin_model, mapping_file, platform_file):
     cpp("#include \"net.h\"")
     
     #cpp("#include <algorithm>")
+
     cpp("#include <opencv2/core/core.hpp>")
     cpp("#include <opencv2/highgui/highgui.hpp>")
-    #cpp("#include <opencv2/opencv.hpp>")
-    cpp("#include <opencv2/core.hpp>")
-    cpp("#include <opencv2/imgproc.hpp>")
-    cpp("#include <opencv2/highgui.hpp>")
-    cpp("#include <opencv2/videoio.hpp>")
+    cpp("#include <opencv2/imgproc/imgproc.hpp>")
     cpp("#include \"benchmark.h\"")
     cpp("#include \"cpu.h\"")
     #cpp("#include \"datareader.h\")
