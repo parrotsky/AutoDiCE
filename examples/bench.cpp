@@ -33,9 +33,13 @@
 static int detect_resnet(const cv::Mat& bgr, std::vector<float>& cls_scores)
 {
     ncnn::Net resnet;
+        int num_threads = ncnn::get_cpu_count();
+
+
 
     //resnet.opt.use_vulkan_compute = true;
     resnet.opt.use_vulkan_compute = false;
+    resnet.opt.num_threads = num_threads;
 
     // the ncnn model https://github.com/nihui/ncnn-assets/tree/master/models
     //resnet.load_param("resnet50-v2-7.param");
