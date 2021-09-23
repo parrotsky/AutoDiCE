@@ -11,7 +11,9 @@ from CodeGen import *
 
 
 def onnx_ncnn(origin_model, mapping_file, platform_file):
-
+###### 
+#### 生成ncnn的多机模型代码 #
+####
     with open(platform_file, 'r') as f:
             platform = f.readlines()
             #print (platform)
@@ -196,7 +198,7 @@ def onnx_ncnn(origin_model, mapping_file, platform_file):
     
     cpp("#include \"net.h\"")
     
-    cpp("#include <algorithm>")
+    #cpp("#include <algorithm>")
     cpp("#include <opencv2/core/core.hpp>")
     cpp("#include <opencv2/highgui/highgui.hpp>")
     #cpp("#include <opencv2/opencv.hpp>")
@@ -204,8 +206,10 @@ def onnx_ncnn(origin_model, mapping_file, platform_file):
     cpp("#include <opencv2/imgproc.hpp>")
     cpp("#include <opencv2/highgui.hpp>")
     cpp("#include <opencv2/videoio.hpp>")
-    
-
+    cpp("#include \"benchmark.h\"")
+    cpp("#include \"cpu.h\"")
+    #cpp("#include \"datareader.h\")
+    cpp("#include \"gpu.h\"")
     cpp("#include <stdio.h>")
     cpp("#include <vector>")
     cpp("#include <mpi.h>\n")
@@ -281,6 +285,8 @@ def onnx_ncnn(origin_model, mapping_file, platform_file):
     request_len = len(recv_node_list) * 2
     ### recv + send = len
     cpp("int irank = MPI::COMM_WORLD.Get_rank();")
+    cpp("int num_threads = ncnn::get_cpu_count();")
+    
     cpp("MPI_Request requests["+str(send_len*2)+"];")
     cpp("MPI_Status status["+str(send_len*2)+"];\n")
     
@@ -322,17 +328,38 @@ def onnx_ncnn(origin_model, mapping_file, platform_file):
     
         net_name = "resnet" + str(i)
         cpp("if(irank=="+str(i)+"){")
-    
+        
         for j in receiver_list:
-            # MPI_Irecv(void *buf, int count, MPI_Datatype datatype, int source,
-            #      int tag, MPI_Comm comm, MPI_Request * request)
+              #      int tag, MPI_Comm comm, MPI_Request * request)
             jj_shape = get_node_output_shape(value_map[j])
             new_shape = jj_shape[0:1] + jj_shape[2:4] + jj_shape[1:2]
     #         new_shape = jj_shape
             j_shape = str(new_shape[1:]).replace('[','(').replace(']',')')
             j_size = str(j)+".total()"
+            cpp("    ncnn::Mat "+ str(j)+ j_shape+";")
+            
+        for j in order_sender_list:
+            if j in origin_output_tensor:
+                cpp("    ncnn::Mat "+str(j)+";")
+            else:
+                jj_shape = get_node_output_shape(value_map[j])
+                new_shape = jj_shape[0:1] + jj_shape[2:4] + jj_shape[1:2]
+        #         new_shape = jj_shape
+                j_shape = str(new_shape[1:]).replace('[','(').replace(']',')')
+                cpp("    ncnn::Mat "+str(j)+ j_shape+";")
+            engine_name = platform[i] + j +'.onnx'
+            net_name = platform[i] + j
+            cpp("    ncnn::Net "+ net_name + ";")
+            cpp("    "+net_name+".opt.use_vulkan_compute = false;")
+            cpp("    "+net_name+".opt.lightmode = true;")
+            cpp("    "+net_name+".opt.num_threads = num_threads;")
+            cpp("    "+net_name+".load_param(\""+net_name+".param\");")
+            cpp("    "+net_name+".load_model(\""+net_name+".bin\");\n")
     
-            cpp("    ncnn::Mat "+ str(j)+ j_shape+";\n")
+                
+        for j in receiver_list:
+            # MPI_Irecv(void *buf, int count, MPI_Datatype datatype, int source,
+          
             #sender_dict_list[platform_name][j]:
             #receiver_dict_list[platform_name][j][0]
     #         print ("tag: ",tag_index)
@@ -348,15 +375,12 @@ def onnx_ncnn(origin_model, mapping_file, platform_file):
         for j in order_sender_list:
             engine_name = platform[i] + j +'.onnx'
             net_name = platform[i] + j
-            cpp("    ncnn::Net "+ net_name + ";")
-    
-            cpp("    "+net_name+".load_param(\""+net_name+".param\");")
-            cpp("    "+net_name+".load_model(\""+net_name+".bin\");\n")
-    
-    
             input_list = getInputlayers('./models/'+platform[i]+j+'.onnx')
             for per_input in input_list:
                 cpp("    ncnn::Extractor ex"+str(j)+" = "+str(net_name)+".create_extractor();\n")
+            
+            for per_input in input_list:
+                #cpp("    ex"+str(j)+" = "+str(net_name)+".create_extractor();\n")
                 if (per_input in origin_input_tensor):
                     cpp("    ncnn::Mat in = ncnn::Mat::from_pixels_resize(bgr.data, ncnn::Mat::PIXEL_BGR, bgr.cols, bgr.rows, 224, 224);")
                     cpp("    const float mean_vals[3] = {104.f, 117.f, 123.f};")
@@ -371,7 +395,7 @@ def onnx_ncnn(origin_model, mapping_file, platform_file):
 #                    cpp("    const float mean_vals[3] = {127.5f, 127.5f, 127.5f};")
 #                    cpp("    const float norm_vals[3] = {1.0 / 127.5, 1.0 / 127.5, 1.0 / 127.5};")
 #                    cpp("    in.substract_mean_normalize(mean_vals, norm_vals);\n")
-            cpp("    ncnn::Mat "+str(j)+";\n")
+
             cpp("    ex"+str(j)+".extract(\""+str(j)+"\", "+str(j)+");")
     #             int MPI_Isend(const void *buf, int count, MPI_Datatype datatype, int dest, int tag,
     #               MPI_Comm comm, MPI_Request *request)
@@ -456,7 +480,10 @@ def onnx_ncnn(origin_model, mapping_file, platform_file):
     cpp("    return 0;")
     cpp("}\n            ")
     cpp.close()
-    
+
+
+
+
  
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
