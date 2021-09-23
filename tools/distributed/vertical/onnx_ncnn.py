@@ -196,22 +196,17 @@ def onnx_ncnn(origin_model, mapping_file, platform_file):
     ##############
     cpp = CppFile("./models/multinode.cpp")
     
-    
-    cpp("#include \"net.h\"")
-    
-    #cpp("#include <algorithm>")
-
+    cpp("#include \"net.h\"")   
+    cpp("#include <algorithm>") 
     cpp("#include <opencv2/core/core.hpp>")
     cpp("#include <opencv2/highgui/highgui.hpp>")
-    cpp("#include <opencv2/imgproc/imgproc.hpp>")
     cpp("#include \"benchmark.h\"")
-    cpp("#include \"cpu.h\"")
-    #cpp("#include \"datareader.h\")
+    cpp("#include \"cpu.h\"")                                                                                                                             
     cpp("#include \"gpu.h\"")
     cpp("#include <stdio.h>")
     cpp("#include <vector>")
-    cpp("#include <mpi.h>\n")
-    
+    cpp("#include <mpi.h>")
+
 
     cpp("static int load_labels(std::string path, std::vector<std::string>& labels)")
     cpp("{    ")
