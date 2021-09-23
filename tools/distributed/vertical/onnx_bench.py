@@ -207,6 +207,8 @@ def onnx_bench(origin_model, mapping_file, platform_file):
     cpp("#include <mpi.h>")
 
     
+    cpp("static ncnn::UnlockedPoolAllocator g_blob_pool_allocator;")
+    cpp("static ncnn::PoolAllocator g_workspace_pool_allocator;\n")
 
     cpp("static int load_labels(std::string path, std::vector<std::string>& labels)")
     cpp("{    ")
@@ -343,8 +345,10 @@ def onnx_bench(origin_model, mapping_file, platform_file):
             engine_name = platform[i] + j +'.onnx'
             net_name = platform[i] + j
             cpp("    ncnn::Net "+ net_name + ";")
+            cpp("    "+net_name+".opt.blob_allocator = &g_blob_pool_allocator;")
+            cpp("    "+net_name+".opt.workspace_allocator = &g_workspace_pool_allocator;")
             cpp("    "+net_name+".opt.use_vulkan_compute = false;")
-            cpp("    "+net_name+".opt.lightmode = true;")
+            #cpp("    "+net_name+".opt.lightmode = true;")
             cpp("    "+net_name+".opt.num_threads = num_threads;")
             cpp("    "+net_name+".load_param(\""+net_name+".param\");")
             cpp("    "+net_name+".load_model(\""+net_name+".bin\");\n")
@@ -430,6 +434,7 @@ def onnx_bench(origin_model, mapping_file, platform_file):
             #sender_dict_list[platform_name][j]:
             #receiver_dict_list[platform_name][j][0]
     #         print ("tag: ",tag_index)
+            j_size = str(j)+".total()"
             recv_source = receiver_dict_list[platform_name][j][0]
             tag_index = tag_dict_list[recv_source][platform_name]
     
@@ -542,6 +547,8 @@ def onnx_bench(origin_model, mapping_file, platform_file):
 
     
     cpp("    const char* imagepath = argv[1];\n")
+    cpp("    g_blob_pool_allocator.set_size_compare_ratio(0.0f);")
+    cpp("    g_workspace_pool_allocator.set_size_compare_ratio(0.5f);\n")
     
     cpp("    cv::Mat m = cv::imread(imagepath, 1);")
     cpp("    if (m.empty())")
