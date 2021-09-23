@@ -33,7 +33,7 @@ def onnx_bench(origin_model, mapping_file, platform_file):
     input_tensor_dict = {}
     mapping_node_name_list =[]
     for key, value in platform_mapping.items():    
-        onnx_extract(origin_model, './models/'+key+'.onnx', value)
+        #onnx_extract(origin_model, './models/'+key+'.onnx', value)
         input_tensor_dict[key] =  getInputlayers('./models/'+key+'.onnx')
         for node_name in value:
             mapping_node_name_list.append(node_name)
@@ -181,7 +181,7 @@ def onnx_bench(origin_model, mapping_file, platform_file):
             engine_name = str(platform[i]) + str(j) +'.onnx'
             node_input_names = []
             node_input_names =  traceUpNodes(graph, j,node_input_names, node_map, 0, initializer_map)
-            onnx_extract('./models/'+str(platform[i])+'.onnx', './models/'+engine_name, node_input_names)
+            #onnx_extract('./models/'+str(platform[i])+'.onnx', './models/'+engine_name, node_input_names)
     
     
     # output_names_list = []

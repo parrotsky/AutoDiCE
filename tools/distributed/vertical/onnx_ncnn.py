@@ -8,6 +8,7 @@ import numpy as np
 from data_json import *
 from onnx_split import *
 from CodeGen import *
+from onnx_bench import *
 
 
 def onnx_ncnn(origin_model, mapping_file, platform_file):
@@ -492,4 +493,5 @@ if __name__ == "__main__":
     parser.add_argument("platform", help="Platforms......")
     args = parser.parse_args()
     onnx_ncnn(args.origin_model, args.mapping, args.platform)
+    onnx_bench(args.origin_model, args.mapping, args.platform)
 
