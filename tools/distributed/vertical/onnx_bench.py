@@ -91,7 +91,8 @@ def onnx_bench(origin_model, mapping_file, platform_file):
     tag_dict_list = {}
     tag = 0
     send_len = 0
-    
+    comm_dict_list = {}
+    comm_tag = 0
     for key, value in platform_mapping.items():
         receiver_dict = {}
         sender_dict ={}
@@ -102,6 +103,8 @@ def onnx_bench(origin_model, mapping_file, platform_file):
                 continue
             for per_input_tensor in v:
                 if per_input_tensor in value:
+                    comm_dict_list[(key,k,per_input_tensor)] = comm_tag
+                    comm_tag += 1
                     if per_input_tensor in sender_dict:
                         sender_dict[per_input_tensor].append(k)
                         tag_dict[k] = tag
@@ -353,19 +356,20 @@ def onnx_bench(origin_model, mapping_file, platform_file):
             cpp("    "+net_name+".load_param(\""+net_name+".param\");")
             cpp("    "+net_name+".load_model(\""+net_name+".bin\");\n")
         
+        gen_in=True 
         for j in order_sender_list:
             engine_name = platform[i] + j +'.onnx'
             net_name = platform[i] + j
             input_list = getInputlayers('./models/'+platform[i]+j+'.onnx')
 #             for per_input in input_list:
 #                 cpp("    ncnn::Extractor ex"+str(j)+" = "+str(net_name)+".create_extractor();\n")
-            
             for per_input in input_list:
                 #cpp("    ex"+str(j)+" = "+str(net_name)+".create_extractor();\n")
-                if (per_input in origin_input_tensor):
+                if (per_input in origin_input_tensor) and gen_in:
                     cpp("    ncnn::Mat in = ncnn::Mat::from_pixels_resize(bgr.data, ncnn::Mat::PIXEL_BGR, bgr.cols, bgr.rows, 224, 224);")
                     cpp("    const float mean_vals[3] = {104.f, 117.f, 123.f};")
                     cpp("    in.substract_mean_normalize(mean_vals, 0);")
+                    gen_in = False
 #                     cpp("    ex"+str(j)+".input(\""+str(per_input)+"\", in);\n")    
         
         cpp("    int g_warmup_loop_count = 2;")
@@ -436,10 +440,11 @@ def onnx_bench(origin_model, mapping_file, platform_file):
             j_size = str(j)+".total()"
             recv_source = receiver_dict_list[platform_name][j][0]
             tag_index = tag_dict_list[recv_source][platform_name]
+            comm_id = comm_dict_list[(recv_source,platform_name,j)]
     
             cpp("            MPI_Irecv((float* )"+ str(j)+ ", " +j_size+
                 ", MPI_FLOAT, "+str(platform_dict[recv_source])+", ")
-            cpp("                    "+str(tag_index)+", MPI_COMM_WORLD, &requests[" + str(tag_index+ send_len) +"]);\n")
+            cpp("                    "+str(comm_id)+", MPI_COMM_WORLD, &requests[" + str(comm_id + send_len) +"]);\n")
             recv_request_dict[j] = recv_request_index
             recv_request_index+=1
     
@@ -459,7 +464,8 @@ def onnx_bench(origin_model, mapping_file, platform_file):
                 else:
                     recv_source = receiver_dict_list[platform_name][per_input][0]
                     tag_index = tag_dict_list[recv_source][platform_name] + send_len
-                    cpp("            MPI_Wait(&requests[" +str(tag_index)+"], &status["+str(tag_index)+"]);")
+                    comm_id = comm_dict_list[(recv_source, platform_name, per_input)]
+                    cpp("            MPI_Wait(&requests[" +str(comm_id+send_len)+"], &status["+str(comm_id+send_len)+"]);")
                     cpp("            ex"+str(j)+".input(\""+str(per_input)+"\", "+str(per_input)+");")
 #                    cpp("    ncnn::Mat in = ncnn::Mat::from_pixels_resize(bgr.data, ncnn::Mat::PIXEL_BGR, bgr.cols, bgr.rows, 224, 224);")
 #                    cpp("    const float mean_vals[3] = {127.5f, 127.5f, 127.5f};")
@@ -475,11 +481,12 @@ def onnx_bench(origin_model, mapping_file, platform_file):
             if j not in origin_output_tensor:
                 for dest in sender_dict_list[platform_name][j]:
                     tag_index = tag_dict[dest]
+                    comm_id = comm_dict_list[(platform_name, dest, j)]
     #                 print ("tag: ",tag_index)
                     cpp("            MPI_Isend((float* )"+ str(j)+ ", " +j_size+
                     ", MPI_FLOAT, "+str(platform_dict[dest])+", ")
-                    cpp("                "+str(tag_index)+", MPI_COMM_WORLD, &requests[" + str(tag_index) +"]);\n")
-                    cpp("            MPI_Wait(&requests[" +str(tag_index)+"], &status["+str(tag_index)+"]);")
+                    cpp("                "+str(comm_id)+", MPI_COMM_WORLD, &requests[" + str(comm_id) +"]);\n")
+                    cpp("            MPI_Wait(&requests[" +str(comm_id)+"], &status["+str(comm_id)+"]);")
                     send_request_dict[j] = send_request_index
                     send_request_index+=1           
         cpp("        }")
