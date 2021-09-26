@@ -8,8 +8,36 @@ import numpy as np
 from data_json import *
 
 ##############################
+def format_onnx(input_model):
+    model = onnx.load(input_model)
+    model = onnx.shape_inference.infer_shapes(model)
+    graph = model.graph
+    for init_i in range(len(graph.initializer)):
+        graph.initializer[init_i].name = graph.initializer[init_i].name.replace('/','_')
+    for i in range(len(graph.input)):
+        graph.input[i].name = graph.input[i].name.replace('/','_')
+    for i in range(len(graph.output)):
+        graph.output[i].name = graph.output[i].name.replace('/','_')
+
+
+    for i in range(len(graph.node)):
+        graph.node[i].name = str(graph.node[i].output[0]).replace('/','_')
+        for input_i in range(len(graph.node[i].input)):
+            graph.node[i].input[input_i] = (graph.node[i].input[input_i]).replace('/','_')
+        for output_i in range(len(graph.node[i].output)):
+            graph.node[i].output[output_i] = graph.node[i].output[output_i].replace('/','_')
+    
+    try:
+        model_name = 'format_'+input_model.split('/')[-1]
+        onnx.save(model, model_name)
+        print("Check input model:::", model_name, " Format Errors: ", onnx.checker.check_model(model))
+    except:
+        print ("Check Model or Path Exists.")
+    return model_name
 ############## 标准读取 onnx model ################
 ##############################
+
+
 def load_onnx(input_model):
     model = onnx.load(input_model)
     model = onnx.shape_inference.infer_shapes(model)
@@ -118,7 +146,7 @@ def generate_node_dict(graph_member_list):
     return member_map
 
 
-def traceUpNodes(graph,name, node_input_names,node_map, start_index, initializer_map):
+def traceUpNodes(graph, name, node_input_names, node_map, start_index, initializer_map):
     # recurisvely traces all dependent nodes for a given output nodes in a graph    
     #  valid_node_names = traceUpNodes(graph, output_node_name,
     #                valid_node_names,node_map, input_node_names, initializer_map)
