@@ -213,6 +213,50 @@ def onnx_bench(origin_model, mapping_file, platform_file):
     cpp("static ncnn::UnlockedPoolAllocator g_blob_pool_allocator;")
     cpp("static ncnn::PoolAllocator g_workspace_pool_allocator;\n")
 
+    cpp("int parseLine(char* line){")
+    cpp("    // This assumes that a digit will be found and the line ends in Kb.")
+    cpp("    int i = strlen(line);")
+    cpp("    const char* p = line;")
+    cpp("    while (*p <'0' || *p > '9') p++;")
+    cpp("    line[i-3] = '\0';")
+    cpp("    i = atoi(p);")
+    cpp("    return i;")
+    cpp("}\n")
+    
+    cpp("int getVirtual(){ //Note: this value is in KB!")
+    cpp("    FILE* file = fopen(\"/proc/self/status\", \"r\");")
+    cpp("    int result = -1;")
+    cpp("    char line[128];\n")
+    
+    cpp("    while (fgets(line, 128, file) != NULL){")
+    cpp("        if (strncmp(line, \"VmSize:\", 7) == 0){")
+    cpp("            result = parseLine(line);")
+    cpp("            break;")
+    cpp("        }")
+    cpp("    }")
+    cpp("    fclose(file);")
+    cpp("    return result;")
+    cpp("}\n")
+    
+    cpp("int getPhysical(){ //Note: this value is in KB!")
+    cpp("    FILE* file = fopen(\"/proc/self/status\", \"r\");")
+    cpp("    int result = -1;")
+    cpp("    char line[128];\n")
+    
+    cpp("    while (fgets(line, 128, file) != NULL){")
+    cpp("        if (strncmp(line, \"VmRSS:\", 6) == 0){")
+    cpp("            result = parseLine(line);")
+    cpp("            break;")
+    cpp("        }")
+    cpp("    }")
+    cpp("    fclose(file);")
+    cpp("    return result;")
+    cpp("}")
+
+
+
+
+
     cpp("static int load_labels(std::string path, std::vector<std::string>& labels)")
     cpp("{    ")
     cpp("    FILE* fp = fopen(path.c_str(), \"r\");")
@@ -327,6 +371,8 @@ def onnx_bench(origin_model, mapping_file, platform_file):
         net_name = "resnet" + str(i)
         cpp("if(irank=="+str(i)+"){")
         
+
+
         for j in receiver_list:
               #      int tag, MPI_Comm comm, MPI_Request * request)
             jj_shape = get_node_output_shape(value_map[j])
@@ -351,8 +397,22 @@ def onnx_bench(origin_model, mapping_file, platform_file):
             cpp("    "+net_name+".opt.blob_allocator = &g_blob_pool_allocator;")
             cpp("    "+net_name+".opt.workspace_allocator = &g_workspace_pool_allocator;")
             cpp("    "+net_name+".opt.use_vulkan_compute = false;")
-            #cpp("    "+net_name+".opt.lightmode = true;")
+            cpp("    "+net_name+".opt.use_winograd_convolution = true;")
+            cpp("    "+net_name+".opt.use_sgemm_convolution = true;")
+            cpp("    "+net_name+".opt.use_int8_inference = true;")
+            cpp("    "+net_name+".opt.use_fp16_packed = true;")
+            cpp("    "+net_name+".opt.use_fp16_storage = true;")
+            cpp("    "+net_name+".opt.use_fp16_arithmetic = true;")
+            cpp("    "+net_name+".opt.use_int8_storage = true;")
+            cpp("    "+net_name+".opt.use_int8_arithmetic = true;")
+            cpp("    "+net_name+".opt.use_packing_layout = true;")
+            cpp("    "+net_name+".opt.use_shader_pack8 = false;")
+            cpp("    "+net_name+".opt.use_image_storage = false;")
             cpp("    "+net_name+".opt.num_threads = num_threads;")
+            cpp("    ncnn::set_omp_dynamic(0);")
+            cpp("    ncnn::set_omp_num_threads(num_threads);")
+
+            #cpp("    "+net_name+".opt.lightmode = true;")
             cpp("    "+net_name+".load_param(\""+net_name+".param\");")
             cpp("    "+net_name+".load_model(\""+net_name+".bin\");\n")
         
@@ -373,7 +433,7 @@ def onnx_bench(origin_model, mapping_file, platform_file):
 #                     cpp("    ex"+str(j)+".input(\""+str(per_input)+"\", in);\n")    
         
         cpp("    int g_warmup_loop_count = 2;")
-        cpp("    int g_loop_count = 10;")
+        cpp("    int g_loop_count = 50;")
         cpp("// warm up")
         cpp("    for (int i = 0; i < g_warmup_loop_count; i++)")
         cpp("    {")
@@ -498,6 +558,8 @@ def onnx_bench(origin_model, mapping_file, platform_file):
         cpp("    }")
         cpp("    time_avg /= g_loop_count;")
         cpp("    fprintf(stderr, \"IRank: %d  min = %7.2f  max = %7.2f  avg = %7.2f\\n\", irank, time_min, time_max, time_avg);")           
+        cpp("    std::cout <<\"IRank: \"<< irank << \", Virtual Memory Usage (KB): \"<<getVirtual()<< std::endl;")
+        cpp("    std::cout <<\"IRank: \"<< irank << \", Physical Memory Usage (KB): \"<<getPhysical()<< std::endl;")
 
 
    #     if j not in origin_output_tensor:
