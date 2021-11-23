@@ -6,6 +6,8 @@ import argparse
 import json,copy
 import numpy as np
 from data_json import *
+from onnx import numpy_helper
+
 
 ##############################
 def format_onnx(input_model):
@@ -461,4 +463,143 @@ def onnx_split(input_model, output_model, split):
     jsonFile.close()
     print ("Generate ", parts, " models.")
         # SAVE MODEL
+
+def create_initializer_tensor(
+        name: str,
+        tensor_array: np.ndarray,
+        data_type: onnx.TensorProto = onnx.TensorProto.FLOAT
+) -> onnx.TensorProto:
+
+    # (TensorProto)
+    initializer_tensor = onnx.helper.make_tensor(
+        name=name,
+        data_type=data_type,
+        dims=tensor_array.shape,
+        vals=tensor_array.flatten().tolist())
+
+    return initializer_tensor
+
+def fc_split(origin_model, nodes_num, layer_name, split, output_model):
+    """ edits and modifies an fully-connect layer in a LIP/LOP way.
+    Arguments: 
+        origin_model: path of input onnx model. 'bvlc_alexnet-9.onnx'
+        nodes_num: horizontal split deploy nodes number.
+        layer_name: layer name of fully connect layer, e.g. fc6_1 in AlexNet 
+        split: Definition of LIP/LOP. e.g. 'LIP'
+        
+    """
+
+    origin_graph = load_onnx(origin_model)
+    onnx_model   = onnx.load(origin_model)
+    initializers  = onnx_model.graph.initializer
+    initializer_map = generate_node_dict(origin_graph.initializer)
+    value_map = generate_node_dict(origin_graph.value_info)
+    node_map = generate_node_dict(origin_graph.node)
+    ###
+    # find layer input name; weight name, output name
+    layer_weights_name =[n for n in node_map[layer_name].input if n in list(initializer_map.keys())]
+    layer_input_name = list(set(node_map[layer_name].input)-set(layer_weights_name))[0]
+    layer_output_name = list(node_map[layer_name].output)[0]
+
+    layer_weights={}
+    for init in onnx_model.graph.initializer:
+        if init.name in layer_weights_name:
+            W = numpy_helper.to_array(init)
+            layer_weights[init.name] = W
+        
+    for i, key in enumerate(node_map.keys()):
+    if layer_weights_name[0] in node_map[key].input:
+    #    print (i , key, origin_graph.node[i])
+        break
+    index = i  ### get index for the layer name.
+
+    ### Split weights and bias in fully connected layer
+    split_fc_weights = {}
+    split_fc_bias ={}
+    split_layer_dim = []
+    fc_layers_name = []
+
+    for w in layer_weights_name:
+        if len(layer_weights[w].shape)==1:  ################## bias
+            split_fc_bias_name = '0_'+ w
+            split_fc_bias[split_fc_bias_name] = layer_weights[w]
+    
+        if len(layer_weights[w].shape)>=2:  ################## w not b. because transb =1, so LIP axis=1; LOP axis=0.
+            weight = np.array_split(layer_weights[w], nodes_num, axis=1)
+            for i in range(nodes_num):
+                node_weight_name= str(i)+'_' + w
+                split_fc_weights[node_weight_name] = weight[i]
+                split_layer_dim.append(weight[i].shape[1])
+                fc_layers_name.append(str(i)+'_'+layer_name)
+    #            print (weight[i].shape)
+    print (split_fc_weights.keys())
+    print (fc_layers_name)
+    split = np.array(split_layer_dim).astype(np.int64)
+    
+    split_node = onnx.helper.make_node(
+        'Split_'+layer_name,
+        inputs=[layer_input_name, 'split'],
+        outputs=fc_layers_name
+    )
+    
+    onnx_model.graph.node.remove(onnx_model.graph.node[index])
+    
+    onnx_model.graph.node.insert(index-1, split_node)
+    # fc:16插在前面, 那就是15
+    
+    
+    gather_fc_list = []
+    
+    for i in range(nodes_num):
+        w_name = list(split_fc_weights.keys())[i]
+        W_tensor = create_initializer_tensor(
+                name = w_name,
+                tensor_array = split_fc_weights[w_name],
+                data_type=onnx.TensorProto.FLOAT                                                         
+        )
+        onnx_model.graph.initializer.insert(-1,W_tensor)
+    
+        if i==0:
+            b_name = list(split_fc_bias.keys())[0]
+            B_tensor = create_initializer_tensor(
+                name = b_name,
+                tensor_array = split_fc_bias[b_name],
+                data_type = onnx.TensorProto.FLOAT
+            )
+            onnx_model.graph.initializer.insert(-1,B_tensor)
+    
+            
+            fc_node = onnx.helper.make_node(
+                'Gemm',
+                 inputs=[fc_layers_name[i], w_name, b_name],
+                 outputs=['node'+str(i)+'_' +layer_name],
+                 transB=1
+            )
+            
+        else:
+    
+            fc_node = onnx.helper.make_node(
+                'Gemm',
+                 inputs=[fc_layers_name[i], w_name],
+                 outputs=['node'+str(i)+'_' +layer_name],
+                 transB=1
+            )
+        onnx_model.graph.node.insert(index, fc_node)
+        gather_fc_list.append('node'+str(i)+'_' +layer_name)
+    
+    
+    gather_node = onnx.helper.make_node(
+        'Sum',
+        inputs = gather_fc_list,
+        outputs = [layer_output_name],
+    )        
+     
+    onnx_model.graph.node.insert(index+1, gather_node)
+    onnx.save(onnx_model, output_model)
+
+
+
+
+
+
 
