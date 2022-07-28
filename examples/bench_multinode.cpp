@@ -33,7 +33,9 @@ static int print_topk(const std::vector<float>& cls_scores, int topk)
 
 static int multi_classify(const cv::Mat& bgr, std::vector<float>& cls_scores)
 {
-int irank = MPI::COMM_WORLD.Get_rank();
+//int irank = MPI::COMM_WORLD.Get_rank();
+int irank;
+MPI_Comm_rank(MPI_COMM_WORLD, &irank);
 MPI_Request requests[6];
 MPI_Status status[6];
 
@@ -137,15 +139,19 @@ return 0;
 
 int main(int argc, char** argv)
 {
-    MPI::Init(argc, argv);
+    //MPI::Init(argc, argv);
+    MPI_Init(NULL, NULL);
 
     // Get the number of processes
     int world_size;
-    world_size = MPI::COMM_WORLD.Get_size();
+    //world_size = MPI::COMM_WORLD.Get_size();
+
 
     // Get the rank of the process
     int world_rank;
-    world_rank = MPI::COMM_WORLD.Get_rank();
+    //world_rank = MPI::COMM_WORLD.Get_rank();
+    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
     if (argc != 2)
     {
@@ -166,7 +172,9 @@ int main(int argc, char** argv)
     multi_classify(m, cls_scores);
 
     // Finalize the MPI environment.
-    MPI::Finalize();
+//    MPI::Finalize();
+    MPI_Finalize();
+
 
     return 0;
 }
