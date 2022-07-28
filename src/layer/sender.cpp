@@ -19,8 +19,12 @@ namespace ncnn {
 Sender::Sender()
 {
     #if NCNN_MPI
-    nrank = MPI::COMM_WORLD.Get_size();
-    irank = MPI::COMM_WORLD.Get_rank();
+
+    MPI_Comm_rank(MPI_COMM_WORLD, &irank);
+    MPI_Comm_size(MPI_COMM_WORLD, &nrank);
+
+//    nrank = MPI::COMM_WORLD.Get_size();
+//    irank = MPI::COMM_WORLD.Get_rank();
     #endif
     one_blob_only = true;
     support_inplace = true;
@@ -68,29 +72,17 @@ int Sender::forward_inplace(Mat& bottom_top_blob, const Option& opt) const
 #if NCNN_MPI
     MPI_Request requests[node_nums];
     int total_size = bottom_top_blob.total(); // 输入张量的单元总数
+    int send_size = (total_size < size)? total_size : size;
 
     float* ptr = bottom_top_blob;
-
-    if (total_size < size){
-
-        for (int i = 0; i < node_nums; i++){   
-            std::cout<< "sending node: " << node_list[i] << std::endl;
-            MPI_Isend(       /* non-blocking send */
-                    ptr, total_size, MPI_FLOAT,       /* triplet of buffer, size, data type */
-                    (int)node_list[i],
-                    irank,
-                    MPI_COMM_WORLD, &requests[i]);       /* send my_int to master */
-        } 
-    }else{
-        for (int i = 0; i < node_nums; i++){   
-            std::cout<< "sending node: " << node_list[i] << std::endl;
-            MPI_Isend(       /* non-blocking send */
-                    ptr, size, MPI_FLOAT,       /* triplet of buffer, size, data type */
-                    (int)node_list[i],
-                    irank,
-                    MPI_COMM_WORLD, &requests[i]);       /* send my_int to master */
-        }
-    }  
+    for (int i = 0; i < node_nums; i++){   
+        std::cout<< "sending node: " << node_list[i] << std::endl;
+        MPI_Isend(       /* non-blocking send */
+                ptr, send_size, MPI_FLOAT,       /* triplet of buffer, size, data type */
+                (int)node_list[i],
+                irank,
+                MPI_COMM_WORLD, &requests[i]);       /* send my_int to master */
+    } 
 
 #endif
     return 0;

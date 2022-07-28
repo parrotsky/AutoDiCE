@@ -18,10 +18,12 @@ namespace ncnn {
 
 Receiver::Receiver()
 {
-    #if NCNN_MPI
-    nrank = MPI::COMM_WORLD.Get_size();
-    irank = MPI::COMM_WORLD.Get_rank();
-    #endif
+//    nrank = MPI::COMM_WORLD.Get_size();
+//    irank = MPI::COMM_WORLD.Get_rank();
+
+        MPI_Comm_rank(MPI_COMM_WORLD, &irank);
+    MPI_Comm_size(MPI_COMM_WORLD, &nrank);
+
     one_blob_only = true;
 }
 

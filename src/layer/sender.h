@@ -16,6 +16,7 @@
 #define LAYER_SENDER_H
 
 #include "layer.h"
+#include <mpi.h>
 
 namespace ncnn {
 

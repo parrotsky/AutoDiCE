@@ -16,6 +16,7 @@
 #define LAYER_RECEIVER_H
 
 #include "layer.h"
+#include <mpi.h>
 
 namespace ncnn {
 
