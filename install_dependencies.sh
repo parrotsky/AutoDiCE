@@ -32,7 +32,7 @@ install_mpich4(){
 install_sen(){
     echo "installing AutoDiCE library for CNN inference."
     echo "-----------------------------------------"
-    git clone https://github.com/parrotsky/AutoDiCE.git
+    cd ~ && git clone https://github.com/parrotsky/AutoDiCE.git
     cd ~/AutoDiCE/
     sudo apt install -y build-essential git libomp-dev libprotobuf-dev protobuf-compiler libvulkan-dev vulkan-utils
     mkdir -p build && cd build
