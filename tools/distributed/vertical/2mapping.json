@@ -1,1 +1,0 @@
-{"nx01": ["conv1_1", "conv1_2", "norm1_1", "pool1_1", "conv2_1", "conv2_2", "norm2_1", "pool2_1"], "nx02": ["conv3_1", "conv3_2", "conv4_1", "conv4_2","conv5_1", "conv5_2", "pool5_1", "OC2_DUMMY_0", "fc6_1", "fc6_2", "fc6_3", "fc7_1", "fc7_2", "fc7_3", "fc8_1", "prob_1"]}
