@@ -39,4 +39,4 @@ And if you have multiple devices, please check the official [MPI tutorials](http
 In this tutorial, we choose and [download AlexNet](https://github.com/onnx/models/blob/main/vision/classification/alexnet/model/bvlcalexnet-9.onnx) for a simple demo to show how to define Mapping Specification.
 We can find more [onnx models](https://github.com/onnx/models) and download them according to your peferences.
 Please note: we only test for opset version-9 onnx models.
-For details step by step, check the jupyter notebook .[alexnet partition](tools/distributed/vertical/vertical partition tutorial.ipynb)
+For details step by step, check the jupyter notebook .[alexnet partition](https://github.com/parrotsky/AutoDiCE/blob/main/tools/distributed/vertical/vertical%20partition%20tutorial.ipynb)
