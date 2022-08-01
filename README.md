@@ -2,7 +2,10 @@
 
 # Open source
 
-This repository is built on the basis of [NCNN-cuda] (https://github.com/atanmarko/ncnn-with-cuda). It is extended with MPI Interface to support Multi-node Inference. This library is used to distribute the most commonly used CNN network over multiple devices/nodes at the edge. 
+This repository ![AutoDiCE](20220801.png)
+
+
+The inference library is built on the basis of [NCNN](https://github.com/atanmarko/ncnn-with-cuda). And it extends with MPI Interface to support Multi-node Inference. This library is used to distribute the most commonly used CNN network over multiple devices/nodes at the edge. 
 
 ## ncnn
 
@@ -14,7 +17,7 @@ ncnn is a high-performance neural network inference computing framework optimize
 
 ### Installing MPI
 
-MPI is simply a standard interface for others to follow in their implementation. Because of this, there are a wide variety of MPI implementations out there, such as [OpenMPI](https://www.open-mpi.org/software/ompi/v4.1/), [MPICH] ([https://www.mpich.org/](https://www.mpich.org/)). MPI is used for multi-node communication due to its outstanding performance. Users are free to use any implementation they wish, but only the limitation for installing MPI is to ensure that the MPI version keeps consistent on every device.
+MPI is simply a standard interface for others to follow in their implementation. Because of this, there are a wide variety of MPI implementations out there, such as [OpenMPI](https://www.open-mpi.org/software/ompi/v4.1/), [MPICH]([https://www.mpich.org/](https://www.mpich.org/)). MPI is used for multi-node communication due to its outstanding performance. Users are free to use any implementation they wish, but only the limitation for installing MPI is to ensure that the MPI version keeps consistent on every device.
 
 ### Installing Dependencies & AutoDiCE
 
