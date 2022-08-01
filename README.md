@@ -6,11 +6,10 @@ This repository provides a unified interface for specifying a CNN model with Ope
 
   ![AutoDiCE](20220801.png)
 
-With difference Mapping Specifications, users can easily and flexibly change the CNN model partitioning as well as mapping of partitions onto resources of edge devices 
-automated code generation to adapt to user changes, targeting heterogeneous edge platforms; 
+With difference Mapping Specifications, users can easily and flexibly change the CNN model partitioning as well as mapping of partitions onto resources of edge devices. The hardware configurations in automated code generation step can also be modified to adapt to user requirements targeting dor other heterogeneous edge platforms.
 
 
-The inference library is built on the basis of [NCNN](https://github.com/atanmarko/ncnn-with-cuda). Thanks to Lihui and atanmarko's NCNN providing a cross-platform inference engine library that supports GPU acceleration via, e.g., VULKAN & CUDA APIs.  We extends NCNN with MPI Interface to support Multi-node Inference and distribution of most commonly used CNN network over multiple devices/nodes at the edge. 
+Thanks to Lihui and atanmarko's [NCNN](https://github.com/atanmarko/ncnn-with-cuda) providing a cross-platform inference engine library that supports GPU acceleration via, e.g., VULKAN & CUDA APIs.  We extends NCNN with OPENMP + MPI to support Multi-node Inference and distribution of most commonly used CNN network over multiple devices/nodes at the edge. 
 
 ## ncnn
 [ncnn](https://github.com/Tencent/ncnn) is a high-performance neural network inference computing framework optimized for mobile platforms. ncnn is deeply considerate about deployment and uses on mobile phones from the beginning of design. ncnn does not have third-party dependencies. it is cross-platform, and runs faster than all known open source frameworks on mobile phone CPU. Developers can easily deploy deep learning algorithm models to the mobile platform by using efficient ncnn implementation, creating intelligent APPs, and bringing artificial intelligence to your fingertips. ncnn is currently being used in many Tencent applications, such as QQ, Qzone, WeChat, Pitu, and so on.
