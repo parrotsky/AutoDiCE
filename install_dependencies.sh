@@ -30,9 +30,10 @@ install_mpich4(){
     make -j6 && sudo make install
 }
 install_sen(){
-    echo "installing SEN library for CNN inference."
+    echo "installing AutoDiCE library for CNN inference."
     echo "-----------------------------------------"
-    cd ~/SEN/
+    cd ~ && git clone https://github.com/parrotsky/AutoDiCE.git
+    cd ~/AutoDiCE/
     sudo apt install -y build-essential git libomp-dev libprotobuf-dev protobuf-compiler libvulkan-dev vulkan-utils
     mkdir -p build && cd build
     cmake -DNCNN_VULKAN=ON -DNCNN_CUDA=OFF -DNCNN_MPI=ON -DNCNN_OPENMP=ON -DNCNN_BUILD_TESTS=OFF -DNCNN_BUILD_EXAMPLES=ON -DNCNN_BENCHMARK=OFF -DCMAKE_TOOLCHAIN_FILE=../toolchains/tx2.toolchain.cmake ..
