@@ -36,6 +36,7 @@ Before running into multi-node or single-node-multi-threads programs, we need to
 And if you have multiple devices, please check the official [MPI tutorials](https://mpitutorial.com/tutorials/running-an-mpi-cluster-within-a-lan/). It introduces how to build a local LAN cluster with MPI. For super cluster like Slurm, PBS, DAS-5, please look for their own official instructions for MPI configurations.
 
 # Download ONNX models & Specify Mappings
-In this tutorial, we choose and [download AlexNet](https://github.com/onnx/models/blob/main/vision/classification/alexnet/model/bvlcalexnet-12.onnx) for a simple demo to show how to define Mapping Specification.
+In this tutorial, we choose and [download AlexNet](https://github.com/onnx/models/blob/main/vision/classification/alexnet/model/bvlcalexnet-9.onnx) for a simple demo to show how to define Mapping Specification.
 We can find more [onnx models](https://github.com/onnx/models) and download them according to your peferences.
-
+Please note: we only test for opset version-9 onnx models.
+For details step by step, check the jupyter notebook [alexnet partition]((./tools/distributed/vertical/vertical\ partition\ tutorial.ipynb)).
