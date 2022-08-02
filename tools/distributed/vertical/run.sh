@@ -1,10 +1,11 @@
 #!/bin/sh
-cp ../../../build/tools/onnx/onnx2ncnn .
-cp synset_words.txt ./models/
-cp dog.jpg ./models/
 # Generate Sub-models
 echo "Generated Sub-models"
 python3 interface.py  && cp models/multinode.cpp ../../../examples/ 
+
+cp ../../../build/tools/onnx/onnx2ncnn .
+cp synset_words.txt ./models/
+cp dog.jpg ./models/
 # Compile
 echo "compile cpp file into executable binary (./multinode)"
 cd ../../../build/ && make -j6 && cp examples/multinode* ../tools/distributed/vertical/models/
