@@ -40,20 +40,19 @@ In this tutorial, we choose and [download AlexNet](https://github.com/onnx/model
 We can find more [onnx models](https://github.com/onnx/models) and download them according to your peferences.
 Please note: we only test for opset version-9 onnx models.
 1. The jupyter notebook [alexnet partition](https://github.com/parrotsky/AutoDiCE/blob/main/tools/distributed/vertical/vertical%20partition%20tutorial.ipynb) introduces about how to generate multi-node inference c++ code file and corresponding sub-models in details.
-    
+```
     (shell) $ conda install onnxruntime  ## or use pip3 install onnxruntime
     (shell) $ cd ./tools/distributed/vertical/ && cp ~/(Downloaded Dir)/bvlcalexnet-9.onnx ./ ### ensure the model exists
-    
+```    
 2. Define Mapping Specification. In this demo, we want to use two cpu cores to simulate multinode scenario. For example, the hostname of machine is "lenovo". We define two keys in the [mapping.json](https://github.com/parrotsky/AutoDiCE/blob/main/tools/distributed/vertical/mapping.json) file as: "lenovo_cpu0"  and "lenovo_cpu1". Important: Please modify the mapping.json file according to the hostname of your machine. Then we can generate two submodels according to our mapping specification file. 
-
-    
+```    
      (shell) $ ./run.sh
-
+```
     
 3. In the run.sh script, we copy the cpp file to the directory (./examples/) and compile it into an executable bin. 
 4. Deploy the executable file with its submodels into multiple edge devices. 
 5. Use mpirun command to run the multi-node inference appliaction.
-    
+```    
     (shell) $ cd models/ && mpirun -rf rankfile ./multinode dog.jpg
     215 = 0.593469
     207 = 0.125113
@@ -61,5 +60,5 @@ Please note: we only test for opset version-9 onnx models.
     Brittany spaniel 
     golden retriever 
     Irish setter, red setter 
-    
+```    
     
