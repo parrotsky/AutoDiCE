@@ -252,6 +252,66 @@ class EngineCode():
 
         cpp("static ncnn::UnlockedPoolAllocator g_blob_pool_allocator;")
         cpp("static ncnn::PoolAllocator g_workspace_pool_allocator;\n")
+
+        cpp("static int load_labels(std::string path, std::vector<std::string>& labels)\n")
+        cpp("{           \n") 
+        cpp("    FILE* fp = fopen(path.c_str(), \"r\");\n") 
+        cpp("            \n") 
+        cpp("    while (!feof(fp))\n") 
+        cpp("    {       \n") 
+        cpp("        char str[1024];\n") 
+        cpp("        fgets(str, 1024, fp); \n")  
+        cpp("        std::string str_s(str);\n") 
+        cpp("            \n") 
+        cpp("        if (str_s.length() > 0)\n") 
+        cpp("        {   \n") 
+        cpp("            for (int i = 0; i < str_s.length(); i++)\n") 
+        cpp("            {   \n") 
+        cpp("                if (str_s[i] == ' ')\n") 
+        cpp("                {   \n") 
+        cpp("                    std::string strr = str_s.substr(i, str_s.length() - i - 1);\n") 
+        cpp("                    labels.push_back(strr);\n") 
+        cpp("                    i = str_s.length();\n") 
+        cpp("                }\n") 
+        cpp("            }\n") 
+        cpp("        }   \n") 
+        cpp("    }       \n") 
+        cpp("    return 0;\n") 
+        cpp("}  \n") 
+        cpp("\n") 
+        cpp("\n") 
+        cpp("//static int print_topk(const std::vector<float>& cls_scores, int topk)\n") 
+        cpp("static int print_topk(const std::vector<float>& cls_scores, int topk, std::vector<int>& index_result,\n")
+        cpp("             std::vector<float>& score_result)\n") 
+        cpp("{\n")
+        cpp("    // partial sort topk with index\n")
+        cpp("    int size = cls_scores.size();\n")
+        cpp("    std::vector<std::pair<float, int>> vec;\n")
+        cpp("    vec.resize(size);\n")
+        cpp("    for (int i = 0; i < size; i++)\n")
+        cpp("    {\n")
+        cpp("        vec[i] = std::make_pair(cls_scores[i], i);\n")
+        cpp("    }\n")
+        cpp("\n")
+        cpp("    std::partial_sort(vec.begin(), vec.begin() + topk, vec.end(),\n")
+        cpp("                      std::greater<std::pair<float, int> >());\n")
+        cpp("\n")
+        cpp("    // print topk and score\n")
+        cpp("    for (int i = 0; i < topk; i++)\n")
+        cpp("    {\n")
+        cpp("        float score = vec[i].first;\n")
+        cpp("        int index = vec[i].second;\n")
+        cpp("        fprintf(stderr, \"%d = %f\\n\", index, score);\n")
+        cpp("        index_result.push_back(index);\n")
+        cpp("        score_result.push_back(score);\n")
+        cpp("    }\n")
+        cpp("\n")
+        cpp("    return 0;\n")
+        cpp("}\n")
+        cpp("\n")
+
+
+
         cpp.newline(1)
     def GenerateBody(self, cpp):
         if (self.Benchmark):
@@ -485,7 +545,7 @@ class EngineCode():
     def MultiClassify(self, cpp):
         cpp("static int multi_classify(const char* imagepath, std::vector<float>& cls_scores)")
         cpp("{")
-        cpp("   int irank = MPI::COMM_WORLD.Get_rank();")
+        cpp("   int irank; MPI_Comm_rank(MPI_COMM_WORLD, &irank);")
         for i in range(len(self.NodesList)):
             cpp ("  if (irank == " + str(i) + ") {")
             engine = self.NodesList[i]
@@ -530,6 +590,16 @@ class EngineCode():
                     cpp("        cls_scores[j] = "+str(output_buff)+"[j];")
                     cpp("    }\n")
 
+            cpp("std::vector<std::string> labels; \n")
+            cpp("load_labels(\"synset_words.txt\", labels);\n")
+            cpp("std::vector<int> index;\n")
+            cpp("std::vector<float> score;\n")
+            cpp("print_topk(cls_scores, 3, index, score);\n")
+            cpp("   for (int i = 0; i < index.size(); i++)\n")
+            cpp("   {\n")
+            cpp("       fprintf(stderr, \"%s \\n\", labels[index[i]].c_str());\n")
+            cpp("   }\n")       
+
             cpp("   }")
         cpp("return 0;")
         cpp("}\n")
@@ -573,7 +643,7 @@ class EngineCode():
 
         cpp("   MPI_Request requests["+ str(len(list(commdict.keys()))) +"];")
         cpp("   MPI_Status status["+ str(len(list(commdict.keys()))) +"];\n")
-        cpp("   int irank = MPI::COMM_WORLD.Get_rank();")
+        cpp("   int irank; MPI_Comm_rank(MPI_COMM_WORLD, &irank);")
         if (self.Benchmark):
             cpp("   std::string memory_pre = std::to_string(irank) + \"_MEMORY.txt\";")
             cpp("   std::string perf_pre = std::to_string(irank) + \"_PERFORMANCE.txt\";")
@@ -776,10 +846,10 @@ class EngineCode():
         cpp("    // MPI::Init(argc, argv);\n")
         cpp("    // Get the number of processes")
         cpp("    int world_size;")
-        cpp("    world_size = MPI::COMM_WORLD.Get_size();\n")
+        cpp("    MPI_Comm_size(MPI_COMM_WORLD, &world_size);\n")
         cpp("    // Get the rank of the process")
         cpp("    int world_rank;")
-        cpp("    world_rank = MPI::COMM_WORLD.Get_rank();\n")
+        cpp("    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);\n")
 
         cpp("    if (argc != 2)")
         cpp("    {")
@@ -814,7 +884,7 @@ class EngineCode():
         #    cpp("if (world_rank < " + str(len(self.Platforms)) + "){")
         #    cpp("    powerend(world_rank);")
         #    cpp("}\n")
-        cpp("   MPI::Finalize();")
+        cpp("   MPI_Finalize();")
         cpp("   return 0;")
         cpp("}")
 
@@ -954,49 +1024,23 @@ if __name__ == '__main__':
     #origin_model = "resnet101-v2-7.onnx"
     #origin_model = "densenet-9.onnx"
     input_model = format_onnx(origin_model)
-    M=3
     model =  onnx.load(input_model)
     model_len = len(model.graph.node)
+    resourceid = { 1:'lenovo_cpu0', 2:'lenovo_cpu1'}
+    platforms = ['lenovo']
+    random_map = load_json('./mapping.json')
 
+    #M=3
+    #gene = np.array([0,18]).astype(int)
+    #chromosome = ChromosomePartGen(gene, model_len, resourceid)
+    #random_map = MappingGenerator(resourceid, chromosome, input_model)
+    #print ("Mapping: ", random_map)
+    #save_json(random_map, './mapping.json')
 
-    #resourceid = {    0: 'nx01_arm1', 1:'nx01_arm012345', 2:'nx01_gpu',
-    #                  3: 'nx02_arm1', 4:'nx02_arm012345', 5:'nx02_gpu',
-    #                  6: 'nx03_arm1', 7:'nx03_arm012345', 8:'nx03_gpu',
-    #                  9: 'nx04_arm1', 10:'nx04_arm012345', 11:'nx04_gpu',
-    #                  12: 'nx05_arm1', 13:'nx05_arm012345', 14:'nx05_gpu',
-    #                  15: 'nx06_arm1', 16:'nx06_arm012345', 17:'nx06_gpu',
-    #                  18: 'nx07_arm1', 19:'nx07_arm012345', 20:'nx07_gpu',
-    #                  21: 'nx08_arm1', 22:'nx08_arm012345', 23:'nx08_gpu'}
-    #platforms = ['nx01', 'nx02', 'nx03', 'nx04',
-    #                 'nx05', 'nx06', 'nx07', 'nx08']
-    resourceid = { 1:'nx01_arm012345', 2:'nx01_gpu'}
-    platforms = ['nx01']
-
-
-    #mapping = '2mapping.json'
-    #platform = '4platform.txt'
-    #platforms = ['nx06', 'nx07']
-    #resourceid = {0: 'nx03_arm1', 1:'nx03_arm012345', 2:'nx03_gpu'}
-
-    gene = np.array([0,18]).astype(int)
-    chromosome = ChromosomePartGen(gene, model_len, resourceid)
-    #chromosome = ChromosomeGen(resourceid, gene, model_len) 
-    #print ("Resource Dictionary/ID: ", resourceid)
-    #print ("Chromosome: " , chromosome)
-
-    #resourceid = Resource(model=model,nodes=1)
-    #chromosome = [0,0,2,1,2,1,0,0,0,0, 1,1,1,1,1,1,1,1,1,1, 2,2,2,2]
-    # edge01_arm0, edge01_arm012345, edge01_gpu0
-    # [0, 1, 2]
-    # edge01_arm0, edge01_arm012345, edge01_gpu0, edge02_arm0, edge02_arm012345, edge02_gpu0
-    # edge01_gpu0
-    random_map = MappingGenerator(resourceid, chromosome, input_model)
-    print ("Mapping: ", random_map)
-    #random_map = load_json(mapping)
     start_time = time.time()
     InputSpecs = Interface(model=input_model, mappings=random_map, platforms=platforms)
     print ("Front End time: %f (s)"%(time.time() - start_time))
-    # #cppname, NodesList, ComputingNodes
+    #cppname, NodesList, ComputingNodes
     GenerateCode = EngineCode(
         CppName = "./models/multinode",
         Platforms = InputSpecs.platforms,
