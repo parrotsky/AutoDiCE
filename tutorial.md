@@ -44,7 +44,7 @@ In this tutorial, you need to download [AlexNet](https://github.com/onnx/models/
 You can find more [onnx models](https://github.com/onnx/models) and download them according to your preferences.
 Please note: we only test for opset version-9 onnx models.
 
-1. Install the python package `onnxruntime`. Either using conda:
+1. Install the python package `onnxruntime` (Note: ONNX support is used for splitting models, which is not necessary for the deployment of edge devices). Either using conda:
 
     ```
         (shell) $ conda install onnxruntime
