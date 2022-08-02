@@ -2,17 +2,15 @@
 
 # Open source
 
-This repository provides a unified interface for specifying a CNN model with Open Neural Network Exchange (ONNX) support, the model partitioning, and the target edge devices. Inside CNN inference library, we integrate hybrid OpenMP and MPI to support the exploitation of parallelism among and within the edge devices (i.e., exploiting multi-core execution).
+This repository provides a unified interface for specifying a CNN model with Open Neural Network Exchange (ONNX) support, the model partitioning, and the target edge devices. Inside the CNN inference library, we integrate hybrid OpenMP and MPI to support the exploitation of parallelism among and within the edge devices (i.e., exploiting multi-core execution).
 
   ![AutoDiCE](20220801.png)
 
-With difference Mapping Specifications, users can easily and flexibly change the CNN model partitioning as well as mapping of partitions onto resources of edge devices. The hardware configurations in automated code generation step can also be modified to adapt to user requirements targeting dor other heterogeneous edge platforms.
+With different Mapping Specifications, users can quickly and flexibly change the CNN model partitioning and mapping of partitions onto resources of edge devices. The hardware configurations in the automated code generation step can also be modified to adapt to user requirements targeting or other heterogeneous edge platforms.
 
+Thanks to Lihui and atanmarko's [NCNN](https://github.com/atanmarko/ncnn-with-cuda) providing a cross-platform inference engine library that supports GPU acceleration via, e.g., VULKAN & CUDA APIs. We extend NCNN with OPENMP + MPI to support Multi-node Inference and distribution of the most commonly used CNN network over multiple devices/nodes at the edge. 
 
-Thanks to Lihui and atanmarko's [NCNN](https://github.com/atanmarko/ncnn-with-cuda) providing a cross-platform inference engine library that supports GPU acceleration via, e.g., VULKAN & CUDA APIs.  We extends NCNN with OPENMP + MPI to support Multi-node Inference and distribution of most commonly used CNN network over multiple devices/nodes at the edge. 
-
-## ncnn
-[ncnn](https://github.com/Tencent/ncnn) is a high-performance neural network inference computing framework optimized for mobile platforms. ncnn is deeply considerate about deployment and uses on mobile phones from the beginning of design. ncnn does not have third-party dependencies. it is cross-platform, and runs faster than all known open source frameworks on mobile phone CPU. Developers can easily deploy deep learning algorithm models to the mobile platform by using efficient ncnn implementation, creating intelligent APPs, and bringing artificial intelligence to your fingertips. ncnn is currently being used in many Tencent applications, such as QQ, Qzone, WeChat, Pitu, and so on.
+> [ncnn](https://github.com/Tencent/ncnn) is a high-performance neural network inference computing framework optimized for mobile platforms. ncnn is deeply considerate about deployment and uses on mobile phones from the beginning of design. ncnn does not have third-party dependencies. it is cross-platform, and runs faster than all known open source frameworks on mobile phone CPU. Developers can easily deploy deep learning algorithm models to the mobile platform by using efficient ncnn implementation, creating intelligent APPs, and bringing artificial intelligence to your fingertips. ncnn is currently being used in many Tencent applications, such as QQ, Qzone, WeChat, Pitu, and so on.
 
 # How to build.
 
@@ -24,7 +22,7 @@ MPI is simply a standard interface for others to follow in their implementation.
 
 ### Installing Dependencies & AutoDiCE
 
-We also provide an [installation](./install_dependencies.sh) script.
+You can install AutoDiCE by following the instructions below.  We also provide an [installation](./install_dependencies.sh) script that automates these instructions.
 
 ```
 # install cmake --version 3.20
@@ -41,9 +39,10 @@ cmake -DNCNN_VULKAN=ON -DNCNN_CUDA=OFF -DLOG_LAYERS=ON -DCMAKE_TOOLCHAIN_FILE=..
 cmake -DNCNN_VULKAN=OFF -DNCNN_CUDA=OFF -DNCNN_MPI=ON -DNCNN_BUILD_BENCHMARK=OFF -DNCNN_BUILD_EXAMPLES=ON ..
 ```
 
-# how to use AutoDiCE
 
-please check our step-by-step tutorial.[Tutorial](tutorial.md)
+# How to use AutoDiCE
+
+Please check our step-by-step [Tutorial](tutorial.md).
 
 ### License
 
