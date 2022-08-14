@@ -44,6 +44,26 @@ cmake -DNCNN_VULKAN=OFF -DNCNN_CUDA=OFF -DNCNN_MPI=ON -DNCNN_BUILD_BENCHMARK=OFF
 
 Please check our step-by-step [Tutorial](tutorial.md).
 
+### Citation
+
+If you use these models in your research, please cite:
+    
+  @article{guo2022autodice,
+  title={AutoDiCE: Fully Automated Distributed CNN Inference at the Edge},
+  author={Guo, Xiaotian and Pimentel, Andy D and Stefanov, Todor},
+  journal={arXiv preprint arXiv:2207.12113},
+  year={2022}
+  }
+  @online{ncnn,
+    author = {Tencent, Lihui},
+    title = {NCNN},
+    year = {2017},
+   publisher = {GitHub},
+    journal = {GitHub repository},
+    url  = {https://github.com/Tencent/ncnn},
+  }
+  	 
+
 ### License
 
 [BSD 3 Clause](LICENSE.txt)
