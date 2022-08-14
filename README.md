@@ -8,7 +8,7 @@ This repository provides a unified interface for specifying a CNN model with Ope
 
 With different Mapping Specifications, users can quickly and flexibly change the CNN model partitioning and mapping of partitions onto resources of edge devices. The hardware configurations in the automated code generation step can also be modified to adapt to user requirements targeting or other heterogeneous edge platforms.
 
-Thanks to Lihui and atanmarko's [NCNN](https://github.com/atanmarko/ncnn-with-cuda) providing a cross-platform inference engine library that supports GPU acceleration via, e.g., VULKAN & CUDA APIs. We extend NCNN with OPENMP + MPI to support Multi-node Inference and distribution of the most commonly used CNN network over multiple devices/nodes at the edge. 
+Thanks to [Nihui](https://twitter.com/nihui) and atanmarko's [NCNN](https://github.com/atanmarko/ncnn-with-cuda) providing a cross-platform inference engine library that supports GPU acceleration via, e.g., VULKAN & CUDA APIs. We extend NCNN with OPENMP + MPI to support Multi-node Inference and distribution of the most commonly used CNN network over multiple devices/nodes at the edge. 
 
 > [ncnn](https://github.com/Tencent/ncnn) is a high-performance neural network inference computing framework optimized for mobile platforms. ncnn is deeply considerate about deployment and uses on mobile phones from the beginning of design. ncnn does not have third-party dependencies. it is cross-platform, and runs faster than all known open source frameworks on mobile phone CPU. Developers can easily deploy deep learning algorithm models to the mobile platform by using efficient ncnn implementation, creating intelligent APPs, and bringing artificial intelligence to your fingertips. ncnn is currently being used in many Tencent applications, such as QQ, Qzone, WeChat, Pitu, and so on.
 
@@ -47,22 +47,24 @@ Please check our step-by-step [Tutorial](tutorial.md).
 ### Citation
 
 If you use these models in your research, please cite:
-    
+```
   @article{guo2022autodice,
-  title={AutoDiCE: Fully Automated Distributed CNN Inference at the Edge},
-  author={Guo, Xiaotian and Pimentel, Andy D and Stefanov, Todor},
-  journal={arXiv preprint arXiv:2207.12113},
-  year={2022}
+    title={AutoDiCE: Fully Automated Distributed CNN Inference at the Edge},
+    author={Guo, Xiaotian and Pimentel, Andy D and Stefanov, Todor},
+    journal={arXiv preprint arXiv:2207.12113},
+    year={2022}
   }
+  Please include Nihui's NCNN if involves with ARM implementation of NCNN.
   @online{ncnn,
     author = {Tencent, Lihui},
     title = {NCNN},
     year = {2017},
-   publisher = {GitHub},
+    publisher = {GitHub},
     journal = {GitHub repository},
     url  = {https://github.com/Tencent/ncnn},
   }
-  	 
+
+``` 	 
 
 ### License
 
