@@ -1,0 +1,2 @@
+{"conv2_1": ["lop",[48,65535],["lenovo_cpu0", "lenovo_cpu1"]],
+"fc6_1": ["lop",[2000,65535],["lenovo_cpu0", "lenovo_cpu1"]]}

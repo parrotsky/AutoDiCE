@@ -1,13 +1,35 @@
+# -*- coding: utf-8 -*-
 import onnx
 from onnx import helper, checker
-from onnx import TensorProto
 import re
 import argparse
 import json,copy
 import numpy as np
 from data_json import *
 from onnx import numpy_helper
+from onnx import AttributeProto, TensorProto, GraphProto
 
+
+def find_node_index(graph, node_name):
+    idx = 0
+    for n in graph.node:
+        if n.name == node_name:
+            return idx
+        idx = idx +1
+    return -1
+
+def gen_essential(platform, nodes_number):
+    with open("platform.txt", 'w') as p_file:
+        for i in range((int)(nodes_number)):
+            p_file.write(platform[i]+'\n')
+    #rank 0=nx01 slot=0-5
+    with open("hostfile", 'w') as h_file:
+        for i in range((int)(nodes_number)):
+            h_file.write(platform[i]+'    slots=1 \n')
+
+    with open("rankfile", 'w') as h_file:
+        for i in range((int)(nodes_number)):
+            h_file.write('rank '+ str(i) + '=' + platform[i]+'    slots=0-5 \n')
 
 ##############################
 def format_onnx(input_model):
@@ -22,6 +44,7 @@ def format_onnx(input_model):
         graph.output[i].name = graph.output[i].name.replace('/','_')
 
 
+    print (" MODEL has total %d layers." % len(graph.node))
     for i in range(len(graph.node)):
         graph.node[i].name = str(graph.node[i].output[0]).replace('/','_')
         for input_i in range(len(graph.node[i].input)):
@@ -32,9 +55,9 @@ def format_onnx(input_model):
     try:
         model_name = 'format_'+input_model.split('/')[-1]
         onnx.save(model, model_name)
-        print("Check input model:::", model_name, " Format Errors: ", onnx.checker.check_model(model))
+        #print("Check input model:::", model_name, " Format Errors: ", onnx.checker.check_model(model))
     except:
-        print ("Check Model or Path Exists.")
+        print ("Check Model invalid or Path not Exists.")
     return model_name
 ############## 标准读取 onnx model ################
 ##############################
@@ -46,7 +69,7 @@ def load_onnx(input_model):
 
     graph = model.graph
 
-    print("Check input model Errors: ", onnx.checker.check_model(model))
+    #print("Check input model Errors: ", onnx.checker.check_model(model))
 
     #Generate a name for all node if they have none.
     nodeIdx = 0;
@@ -203,7 +226,6 @@ def onnx_extract(input_model, output_model, sub_node_names_list):
     value_map = generate_node_dict(graph.value_info)
     node_map = generate_node_dict(graph.node)
 
-        #print (newmodel_filename)
 
     sub_node_names = [n for n in list(node_map) if n in sub_node_names_list]
     #  找出节点名称
@@ -278,7 +300,7 @@ def onnx_extract(input_model, output_model, sub_node_names_list):
                                onnx.TensorProto.FLOAT,get_node_output_shape(value_map[per_tensor]))
         graph.input.extend([new_tensor_input])
 
-    print("New Output Model", str(output_model), " Generated. Errors: ", onnx.checker.check_model(model))
+    #print("New Output Model", str(output_model), " Generated. Errors: ", onnx.checker.check_model(model))
 
     onnx.save(model, output_model)
 
@@ -298,7 +320,7 @@ def onnx_split(input_model, output_model, split):
 
     graph = model.graph
     
-    print(" Check input model Errors: ", onnx.checker.check_model(model))
+    #print(" Check input model Errors: ", onnx.checker.check_model(model))
     
     #Generate a name for all node if they have none.
     nodeIdx = 0;
@@ -440,13 +462,13 @@ def onnx_split(input_model, output_model, split):
                     new_input_all.append(input_name)
             new_input_all = set(new_input_all)
             extra_tensor = list(set(new_input_all) - (set(new_node_map.keys()) | set(new_initializer_map.keys())))
-            print ("need input tensor: ", extra_tensor)
+            #print ("need input tensor: ", extra_tensor)
             if parts > 0:
                 for per_tensor in extra_tensor:
                     new_tensor_input = onnx.helper.make_tensor_value_info(per_tensor,
                                            onnx.TensorProto.FLOAT,get_node_output_shape(value_map[per_tensor]))
                     graph.input.extend([new_tensor_input])
-            print("Output Model ",parts, " Generated. Errors: ", onnx.checker.check_model(model))
+            #print("Output Model ",parts, " Generated. Errors: ", onnx.checker.check_model(model))
             mapping_dict = {}
             mapping_dict["export"+str(parts) +".onnx"] = list(new_node_map)            
             new_mapping_dict = copy.copy(mapping_dict)
@@ -464,142 +486,528 @@ def onnx_split(input_model, output_model, split):
     print ("Generate ", parts, " models.")
         # SAVE MODEL
 
-def create_initializer_tensor(
-        name: str,
-        tensor_array: np.ndarray,
-        data_type: onnx.TensorProto = onnx.TensorProto.FLOAT
-) -> onnx.TensorProto:
 
-    # (TensorProto)
-    initializer_tensor = onnx.helper.make_tensor(
-        name=name,
-        data_type=data_type,
-        dims=tensor_array.shape,
-        vals=tensor_array.flatten().tolist())
+def horizontal_split(model, splitnode_name, split_ranks, split_axis, split_points):
+    # split_ranks : record all ranks(node) for distributing horizontally.
+    # split_axis: (-1), LOP split. (0) split channel (1) Split Height (2) Split Width.
+    # split_points: (-1) output channels split (0) input channel split. (1&2) output height width split.
+    # e.g.:
+    # split_axis = 1   means split the input data from the height dimension.
+    # split_ranks = [0,1] means distribute the computation over rank 0, 1 (two computing nodes.)
+    #split_points = [3,3000] means the output height is 3, and the other is 3000.
+    split_starts = np.zeros(np.shape(split_ranks), dtype=int)
+    split_ends = np.zeros(np.shape(split_ranks),  dtype=int)
 
-    return initializer_tensor
+    graph = model.graph
+    for n in graph.node:
+        if n.name == '':
+            n.name = str(n.output[0])
+    
+    nodeIdx = find_node_index(graph, splitnode_name)
+             
+    input_map = generate_node_dict(graph.input)
+    output_map = generate_node_dict(graph.output)
+    initializer_map = generate_node_dict(graph.initializer)
+    value_map = generate_node_dict(graph.value_info)
+    node_map = generate_node_dict(graph.node)
+    
+    node_inputs = [n for n in list(node_map[splitnode_name].input) if n not in initializer_map]
+    
+   ###############
+   ### Split Input
+   ###############
+    split_output_names = []
+    for i in range(len(split_ranks)):
+        split_output_names.append(splitnode_name+'_hsplit_'+str(i))
+    
+    gemm_attributes = {'alpha':1.0, 'beta':1.0, 'transA':0, 'transB':1}
+    conv_attributes = {'auto_pad':[],'dilations':[],'group':1,'kernel_shape':[],'pads':[],'strides':[]}
+    fc_attributes = {}
+    node_attribute_names = []
+    for i in range(len(node_map[splitnode_name].attribute)):
+        node_attribute_names.append(node_map[splitnode_name].attribute[i].name)
 
-def fc_split(origin_model, nodes_num, layer_name, split, output_model):
-    """ edits and modifies an fully-connect layer in a LIP/LOP way.
-    Arguments: 
-        origin_model: path of input onnx model. 'bvlc_alexnet-9.onnx'
-        nodes_num: horizontal split deploy nodes number.
-        layer_name: layer name of fully connect layer, e.g. fc6_1 in AlexNet 
-        split: Definition of LIP/LOP. e.g. 'LIP'
+    # Get attributes of Conv layer, pads, kernel, stride, etc.
+
+    if node_map[splitnode_name].op_type == 'Conv':
+        for i in range(len(node_map[splitnode_name].attribute)):
+            attribute_name = node_attribute_names[i]
+            if node_map[splitnode_name].attribute[i].ints:
+                conv_attributes[attribute_name] = node_map[splitnode_name].attribute[i].ints
+            else:
+                conv_attributes[attribute_name] = node_map[splitnode_name].attribute[i].i
+    
+
+    if node_map[splitnode_name].op_type == 'Gemm':   
+        for i in range(len(node_map[splitnode_name].attribute)):
+            attribute_name = node_attribute_names[i] 
+            if node_map[splitnode_name].attribute[i].ints:                      
+                gemm_attributes[attribute_name] = node_map[splitnode_name].attribute[i].ints
+            else:                                    
+                gemm_attributes[attribute_name] = node_map[splitnode_name].attribute[i].i
+
+    weight_names = [name for name in list(node_map[splitnode_name].input) if name in initializer_map]
+    for name in weight_names:
+        if len(initializer_map[name].dims) == 4: # Cout * Cin * Kh * Kw.
+            w = onnx.numpy_helper.to_array(initializer_map[name]) 
+        if len(initializer_map[name].dims) == 2: # Cout * Cin
+            w = onnx.numpy_helper.to_array(initializer_map[name]) 
+        if len(initializer_map[name].dims) == 1: # Cout.
+            b = onnx.numpy_helper.to_array(initializer_map[name])               
+
+
+
+    if split_axis == -1: # do not split for the input.
+        _offset = 0
+        for i in range(len(split_ranks)):
+            split_starts[i] = 0
+            split_ends[i] = 0
+            _offset = split_ends[i]
+            
+    if split_axis == 0: # channel
+        _offset = 0
         
-    """
+        for i in range(len(split_ranks)):
+            split_starts[i] = _offset
+            split_ends[i] = _offset + split_points[i]
+            _offset = split_ends[i]
 
-    origin_graph = load_onnx(origin_model)
-    onnx_model   = onnx.load(origin_model)
-    initializers  = onnx_model.graph.initializer
-    initializer_map = generate_node_dict(origin_graph.initializer)
-    value_map = generate_node_dict(origin_graph.value_info)
-    node_map = generate_node_dict(origin_graph.node)
-    ###
-    # find layer input name; weight name, output name
-    layer_weights_name =[n for n in node_map[layer_name].input if n in list(initializer_map.keys())]
-    layer_input_name = list(set(node_map[layer_name].input)-set(layer_weights_name))[0]
-    layer_output_name = list(node_map[layer_name].output)[0]
+        if (conv_attributes['group'] == 2):            
+            # split_points = np.array(split_points, dtype=int)
+            # split_points = np.repeat(split_points, 2)
+            split_starts = np.repeat(split_starts, 2)
+            split_ends = np.repeat(split_ends, 2)
+            for i in range(len(split_ranks)):
+                split_starts[2*i+1] = split_starts[2*i+1] + np.shape(w)[1]
+                split_ends[2*i+1] = split_ends[2*i+1] + np.shape(w)[1]
 
-    layer_weights={}
-    for init in onnx_model.graph.initializer:
-        if init.name in layer_weights_name:
-            W = numpy_helper.to_array(init)
-            layer_weights[init.name] = W
+    if split_axis == 1: # height
+        _offset = -conv_attributes['pads'][0] 
+        for i in range(len(split_ranks)):
+            split_starts[i] = max(_offset, 0)
+            split_ends[i] = _offset + (split_points[i]-1) * conv_attributes['strides'][0] 
+            _offset = split_ends[i] + conv_attributes['strides'][0]
+            split_ends[i] = max(split_ends[i]+ conv_attributes['kernel_shape'][0], 0)
+            
+    if split_axis == 2: # width.
+        _offset = -conv_attributes['pads'][0] 
+        for i in range(len(split_ranks)):
+            split_starts[i] = max(_offset, 0)
+            split_ends[i] = _offset + (split_points[i]-1) * conv_attributes['strides'][0] 
+            _offset = split_ends[i] + conv_attributes['strides'][0] 
+            split_ends[i] = max(split_ends[i]+ conv_attributes['kernel_shape'][0], 0)
+    
         
-    for i, key in enumerate(node_map.keys()):
-        if layer_weights_name[0] in node_map[key].input:
-    #    print (i , key, origin_graph.node[i])
-            break
-        index = i  ### get index for the layer name.
-
-    ### Split weights and bias in fully connected layer
-    split_fc_weights = {}
-    split_fc_bias ={}
-    split_layer_dim = []
-    fc_layers_name = []
-
-    for w in layer_weights_name:
-        if len(layer_weights[w].shape)==1:  ################## bias
-            split_fc_bias_name = '0_'+ w
-            split_fc_bias[split_fc_bias_name] = layer_weights[w]
-    
-        if len(layer_weights[w].shape)>=2:  ################## w not b. because transb =1, so LIP axis=1; LOP axis=0.
-            weight = np.array_split(layer_weights[w], nodes_num, axis=1)
-            for i in range(nodes_num):
-                node_weight_name= str(i)+'_' + w
-                split_fc_weights[node_weight_name] = weight[i]
-                split_layer_dim.append(weight[i].shape[1])
-                fc_layers_name.append(str(i)+'_'+layer_name)
-    #            print (weight[i].shape)
-    print (split_fc_weights.keys())
-    print (fc_layers_name)
-    split = np.array(split_layer_dim).astype(np.int64)
-    
-    split_node = onnx.helper.make_node(
-        'Split_'+layer_name,
-        inputs=[layer_input_name, 'split'],
-        outputs=fc_layers_name
-    )
-    
-    onnx_model.graph.node.remove(onnx_model.graph.node[index])
-    
-    onnx_model.graph.node.insert(index-1, split_node)
-    # fc:16插在前面, 那就是15
-    
-    
-    gather_fc_list = []
-    
-    for i in range(nodes_num):
-        w_name = list(split_fc_weights.keys())[i]
-        W_tensor = create_initializer_tensor(
-                name = w_name,
-                tensor_array = split_fc_weights[w_name],
-                data_type=onnx.TensorProto.FLOAT                                                         
+    if split_axis >= 0:
+        ##conv_hsplit = onnx.helper.make_node(
+        ##    name=splitnode_name + "_hsplit",  # Name is optional.
+        ##    op_type = "NSplit",
+        ##    inputs = node_inputs, # inputs
+        ##    outputs=split_output_names, # outputs    
+        ##)    
+    # Create a node (NodeProto)
+        conv_hsplit = onnx.helper.make_node(
+            name=splitnode_name + "_hsplit",  # Name is optional.
+            op_type = "HSplit",
+             inputs = node_inputs, # inputs
+            outputs=split_output_names, # outputs    
+            axis=split_axis,
+            starts=split_starts,
+            ends=split_ends,
+            sranks=split_ranks,
+            spoints=split_points,
         )
-        onnx_model.graph.initializer.insert(-1,W_tensor)
+        graph.node.insert(nodeIdx,conv_hsplit)
+        nodeIdx = nodeIdx + 1
+
+   ###############
+   ### Generate Multiple Input: split_output_names
+   ###############
+    splitnode_weights = {}
+    splitnode_bias = {}
+
+   ###############
+   ### split Computations...
+   ###############
     
-        if i==0:
-            b_name = list(split_fc_bias.keys())[0]
-            B_tensor = create_initializer_tensor(
-                name = b_name,
-                tensor_array = split_fc_bias[b_name],
-                data_type = onnx.TensorProto.FLOAT
-            )
-            onnx_model.graph.initializer.insert(-1,B_tensor)
+    if split_axis == -1:
+        # split LOP
+        print ("Horizontally Split Layer (LOP) ", splitnode_name)
+        conv_output_names = []
+        weight_names = [name for name in list(node_map[splitnode_name].input) if name in initializer_map]
+        for name in weight_names:
+            if node_map[splitnode_name].op_type == 'Conv':
+                if len(initializer_map[name].dims) == 4:
+                    # should be weights not bias.
+                    w = onnx.numpy_helper.to_array(initializer_map[name]) 
+                    _offset = 0
+                    for i in range(len(split_ranks)): 
+                        # split into n ranks. n = len(conv1_1_split_ranks)
+                        new_splitnode_weight_name = splitnode_name + '_w_' + str(i)
+                        splitnode_weights[new_splitnode_weight_name] = w[_offset: split_points[i]+_offset,:,:,:]
+                        _offset = _offset + split_points[i]
+
+            if node_map[splitnode_name].op_type == 'Gemm':
+                if len(initializer_map[name].dims) == 2: # Cout * Cin
+                    # should be weights not bias.
+                    print ("Split Fully-Connect weights Channel")
+
+                    w = onnx.numpy_helper.to_array(initializer_map[name])
+                    _offset = 0
+                    for i in range(len(split_ranks)):
+                        # split into n ranks. n = len(conv1_1_split_ranks)
+                        new_splitnode_weight_name = splitnode_name + '_w_' + str(i)
+                        splitnode_weights[new_splitnode_weight_name] = w[_offset: split_points[i]+_offset,:]
+                        _offset = _offset + split_points[i]
+                                
+            if len(initializer_map[name].dims) == 1:
+                b = onnx.numpy_helper.to_array(initializer_map[name]) 
+                _offset = 0
+                for i in range(len(split_ranks)):                     
+                    new_splitnode_bias_name = splitnode_name + '_b_'  + str(i)
+                    splitnode_bias[new_splitnode_bias_name] = b[_offset: split_points[i]+_offset]
+                    _offset = _offset + split_points[i]
     
+    
+        for i in range(len(split_ranks)):            
+            conv1_output_node_name = splitnode_name + '_csplit_' +str(i)
+            conv_output_names.append(conv1_output_node_name)
+            W_initializer_tensor_name = splitnode_name + '_w_' + str(i)
+            W_initializer_tensor = create_initializer_tensor(
+                name=W_initializer_tensor_name,
+                tensor_array=splitnode_weights[W_initializer_tensor_name],
+                data_type=onnx.TensorProto.FLOAT)            
             
-            fc_node = onnx.helper.make_node(
-                'Gemm',
-                 inputs=[fc_layers_name[i], w_name, b_name],
-                 outputs=['node'+str(i)+'_' +layer_name],
-                 transB=1
+            B_initializer_tensor_name = splitnode_name + '_b_' + str(i)
+                
+            B_initializer_tensor = create_initializer_tensor(
+                    name=B_initializer_tensor_name,
+                    tensor_array=splitnode_bias[B_initializer_tensor_name],
+                    data_type=onnx.TensorProto.FLOAT)
+                        
+            graph.initializer.append(W_initializer_tensor)
+            graph.initializer.append(B_initializer_tensor)
+            if node_map[splitnode_name].op_type == 'Conv':
+                conv1_node = onnx.helper.make_node(
+                            name=conv1_output_node_name,  # Name is optional.
+                            op_type="Conv",
+            # Must follow the order of input and output definitions.
+            # https://github.com/onnx/onnx/blob/rel-1.9.0/docs/Operators.md#inputs-2---3
+                            inputs=[
+                                node_inputs[0],
+                                W_initializer_tensor_name,
+                                B_initializer_tensor_name],
+                            outputs=[conv1_output_node_name],
+            # The following arguments are attributes.
+                            auto_pad =  conv_attributes['auto_pad'],
+                            dilations = conv_attributes['dilations'],
+                            group = conv_attributes['group'],
+                            kernel_shape = conv_attributes['kernel_shape'],
+                            pads = conv_attributes['pads'],
+                            strides = conv_attributes['strides']
+                    )
+            if node_map[splitnode_name].op_type == 'Gemm':
+                conv1_node = onnx.helper.make_node(
+                                name=conv1_output_node_name,  # Name is optional.
+                                op_type="Gemm",
+                # Must follow the order of input and output definitions.
+                # https://github.com/onnx/onnx/blob/rel-1.9.0/docs/Operators.md#inputs-2---3
+                    inputs=[node_inputs[0],
+                            #splitnode_name+'_hsplit_'+str(i), 
+                            W_initializer_tensor_name,
+                            B_initializer_tensor_name],
+                    outputs=[conv1_output_node_name],
+                # The following arguments are attributes.
+                    alpha = gemm_attributes['alpha'],
+                    beta = gemm_attributes['beta'],
+                    transA = gemm_attributes['transA'],
+                    transB = gemm_attributes['transB']
+                )
+            
+            graph.node.insert(nodeIdx, conv1_node)
+            nodeIdx = nodeIdx + 1
+        # Create a node (NodeProto)
+        conv_hsum = onnx.helper.make_node(
+            name=splitnode_name + "_oconcat",  # Name is optional.
+            op_type = "Concat",
+            inputs = conv_output_names, # inputs
+            outputs= node_map[splitnode_name].output, # outputs    
+            axis=0
+        )
+        for name in weight_names:
+            graph.input.remove(input_map[name])
+            graph.initializer.remove(initializer_map[name])
+        graph.node.insert(nodeIdx,conv_hsum)
+        nodeIdx = nodeIdx + 1
+        
+    if split_axis == 0:  
+        print ("Split Layer (LIP--Channel) ", splitnode_name)
+        conv_output_names = []
+        weight_names = [name for name in list(node_map[splitnode_name].input) if name in initializer_map]
+        for name in weight_names:
+            if node_map[splitnode_name].op_type == 'Conv':
+                if len(initializer_map[name].dims) == 4:
+                    # should be weights not bias. 
+                    w = onnx.numpy_helper.to_array(initializer_map[name]) 
+                    _offset = 0
+                    for i in range(len(split_ranks)): 
+                        # split into n ranks. n = len(conv1_1_split_ranks)
+                        new_splitnode_weight_name = splitnode_name + '_w_' + str(i)
+                        splitnode_weights[new_splitnode_weight_name] = w[:,_offset: split_points[i]+_offset,:,:]
+                        _offset = _offset + split_points[i]
+
+
+            if node_map[splitnode_name].op_type == 'Gemm':
+                if len(initializer_map[name].dims) == 2:
+                    # should be weights not bias. 
+                    w = onnx.numpy_helper.to_array(initializer_map[name]) 
+                    _offset = 0
+                    for i in range(len(split_ranks)): 
+                        # split into n ranks. n = len(conv1_1_split_ranks)
+                        new_splitnode_weight_name = splitnode_name + '_w_' + str(i)
+                        splitnode_weights[new_splitnode_weight_name] = w[:,_offset: split_points[i]+_offset]
+                        _offset = _offset + split_points[i]
+                  
+
+            if len(initializer_map[name].dims) == 1:
+                b = onnx.numpy_helper.to_array(initializer_map[name]) 
+                new_splitnode_bias_name = splitnode_name + '_b_0' 
+                splitnode_bias[new_splitnode_bias_name] = b
+    
+    
+        #conv_attributes   
+        for i in range(len(split_ranks)):            
+            conv1_output_node_name = splitnode_name + '_splito_' +str(i)
+            conv_output_names.append(conv1_output_node_name)
+            # default the first rank(node) with bias.
+            W_initializer_tensor_name = splitnode_name + '_w_' + str(i)
+            W_initializer_tensor = create_initializer_tensor(
+                name=W_initializer_tensor_name,
+                tensor_array=splitnode_weights[W_initializer_tensor_name],
+                data_type=onnx.TensorProto.FLOAT)            
+            
+            B_initializer_tensor_name = splitnode_name + '_b_' + str(i)
+            if i==0:    
+                B_initializer_tensor = create_initializer_tensor(
+                    name=B_initializer_tensor_name,
+                    tensor_array=splitnode_bias[B_initializer_tensor_name],
+                    data_type=onnx.TensorProto.FLOAT)
+            else:
+                B_initializer_tensor = create_initializer_tensor(
+                    name=B_initializer_tensor_name,
+                    tensor_array=np.zeros(np.shape(b),dtype=float),
+                    data_type=onnx.TensorProto.FLOAT)
+                        
+            graph.initializer.append(W_initializer_tensor)
+            graph.initializer.append(B_initializer_tensor)
+            if node_map[splitnode_name].op_type == 'Conv':
+                conv1_node = onnx.helper.make_node(
+                                name=conv1_output_node_name,  # Name is optional.
+                                op_type="Conv",
+                                # Must follow the order of input and output definitions.
+                                # https://github.com/onnx/onnx/blob/rel-1.9.0/docs/Operators.md#inputs-2---3
+                                inputs=[
+                                        splitnode_name+'_hsplit_'+str(i), W_initializer_tensor_name,
+                                        B_initializer_tensor_name],
+                                outputs=[conv1_output_node_name],
+                                 # The following arguments are attributes.
+                                auto_pad =  conv_attributes['auto_pad'],
+                                dilations = conv_attributes['dilations'],
+                                group = conv_attributes['group'],
+                                kernel_shape = conv_attributes['kernel_shape'],
+                                pads = conv_attributes['pads'],
+                                strides = conv_attributes['strides']
+                                )
+            if node_map[splitnode_name].op_type == 'Gemm':
+                conv1_node = onnx.helper.make_node(
+                                name=conv1_output_node_name,  # Name is optional.
+                                op_type="Gemm",
+                                # Must follow the order of input and output definitions.
+                                # https://github.com/onnx/onnx/blob/rel-1.9.0/docs/Operators.md#inputs-2---3
+                                inputs=[
+                                        splitnode_name+'_hsplit_'+str(i), W_initializer_tensor_name,
+                                        B_initializer_tensor_name],
+                                outputs=[conv1_output_node_name],
+                    alpha = gemm_attributes['alpha'],
+                    beta = gemm_attributes['beta'],
+                    transA = gemm_attributes['transA'],
+                    transB = gemm_attributes['transB']
+                                )
+            graph.node.insert(nodeIdx, conv1_node)
+            nodeIdx = nodeIdx + 1
+        # Create a node (NodeProto)
+        conv_hsum = onnx.helper.make_node(
+            name=splitnode_name + "_hsum",  # Name is optional.
+            op_type = "Sum",
+            inputs = conv_output_names, # inputs
+            outputs= node_map[splitnode_name].output, # outputs    
+            #axis=split_axis,
+            #sranks=split_ranks,
+        )
+        for name in weight_names:
+            graph.input.remove(input_map[name])
+            graph.initializer.remove(initializer_map[name])
+        graph.node.insert(nodeIdx,conv_hsum)
+        nodeIdx = nodeIdx + 1
+    
+    if split_axis == 1:  
+        print ("Split Convolution Layer (LIP--Height) ", splitnode_name)
+        conv_output_names = []
+        weight_names = [name for name in list(node_map[splitnode_name].input) if name in initializer_map]
+        for name in weight_names:
+            if node_map[splitnode_name].op_type == 'Conv':
+                if len(initializer_map[name].dims) == 4:
+                    # should be weights not bias.
+                    w = onnx.numpy_helper.to_array(initializer_map[name]) 
+                    for i in range(len(split_ranks)): 
+                        # split into n ranks. n = len(conv1_1_split_ranks)
+                        new_splitnode_weight_name = splitnode_name + '_w_' + str(i)
+                        splitnode_weights[new_splitnode_weight_name] = w
+                    
+                                
+            if len(initializer_map[name].dims) == 1:
+                b = onnx.numpy_helper.to_array(initializer_map[name]) 
+                _offset = 0                
+                for i in range(len(split_ranks)): 
+                    new_splitnode_bias_name = splitnode_name + '_b_' + str(i)
+                    splitnode_bias[new_splitnode_bias_name] = b
+    
+    
+        #conv_attributes   
+        for i in range(len(split_ranks)):            
+            conv1_output_node_name = splitnode_name + '_splith_' +str(i)
+            conv_output_names.append(conv1_output_node_name)
+            # default the first rank(node) with bias.
+            W_initializer_tensor_name = splitnode_name + '_w_' + str(i)
+            W_initializer_tensor = create_initializer_tensor(
+                name=W_initializer_tensor_name,
+                tensor_array=splitnode_weights[W_initializer_tensor_name],
+                data_type=onnx.TensorProto.FLOAT)            
+            
+            B_initializer_tensor_name = splitnode_name + '_b_' + str(i)
+            B_initializer_tensor = create_initializer_tensor(
+                    name=B_initializer_tensor_name,
+                    tensor_array=splitnode_bias[B_initializer_tensor_name],
+                    data_type=onnx.TensorProto.FLOAT)
+                        
+            graph.initializer.append(W_initializer_tensor)
+            graph.initializer.append(B_initializer_tensor)
+    
+            conv1_node = onnx.helper.make_node(
+                            name=conv1_output_node_name,  # Name is optional.
+                            op_type="Conv",
+            # Must follow the order of input and output definitions.
+            # https://github.com/onnx/onnx/blob/rel-1.9.0/docs/Operators.md#inputs-2---3
+                inputs=[
+                        splitnode_name+'_hsplit_'+str(i), W_initializer_tensor_name,
+                        B_initializer_tensor_name],
+                outputs=[conv1_output_node_name],
+            # The following arguments are attributes.
+                auto_pad =  conv_attributes['auto_pad'],
+                dilations = conv_attributes['dilations'],
+                group = conv_attributes['group'],
+                kernel_shape = conv_attributes['kernel_shape'],
+                pads = conv_attributes['pads'],
+                strides = conv_attributes['strides']
             )
             
-        else:
+            graph.node.insert(nodeIdx, conv1_node)
+            nodeIdx = nodeIdx + 1
+        # Create a node (NodeProto)
+        conv_hsum = onnx.helper.make_node(
+            name=splitnode_name + "_hconcat",  # Name is optional.
+            op_type = "Concat",
+            inputs = conv_output_names, # inputs
+            outputs= node_map[splitnode_name].output, # outputs    
+            axis=2,
+         )
+        for name in weight_names:
+            graph.input.remove(input_map[name])
+            graph.initializer.remove(initializer_map[name])
+        graph.node.insert(nodeIdx,conv_hsum)
+        nodeIdx = nodeIdx + 1
+        
+        
+    if split_axis == 2:  
+        print ("Split Convolution Layer (LIP--Width) ", splitnode_name)
+        conv_output_names = []
+        weight_names = [name for name in list(node_map[splitnode_name].input) if name in initializer_map]
+        for name in weight_names:
+            if len(initializer_map[name].dims) == 4:
+                # should be weights not bias.
+                w = onnx.numpy_helper.to_array(initializer_map[name]) 
+                for i in range(len(split_ranks)): 
+                    # split into n ranks. n = len(conv1_1_split_ranks)
+                    new_splitnode_weight_name = splitnode_name + '_w_' + str(i)
+                    splitnode_weights[new_splitnode_weight_name] = w
+                    
+                                
+            if len(initializer_map[name].dims) == 1:                                
+                b = onnx.numpy_helper.to_array(initializer_map[name]) 
+                for i in range(len(split_ranks)): 
+                    b = onnx.numpy_helper.to_array(initializer_map[name]) 
+                    new_splitnode_bias_name = splitnode_name + '_b_' + str(i)
+                    splitnode_bias[new_splitnode_bias_name] = b
     
-            fc_node = onnx.helper.make_node(
-                'Gemm',
-                 inputs=[fc_layers_name[i], w_name],
-                 outputs=['node'+str(i)+'_' +layer_name],
-                 transB=1
+    
+        #conv_attributes   
+        for i in range(len(split_ranks)):            
+            conv1_output_node_name = splitnode_name + '_splitw_' +str(i)
+            conv_output_names.append(conv1_output_node_name)
+            # default the first rank(node) with bias.
+            W_initializer_tensor_name = splitnode_name + '_w_' + str(i)
+            W_initializer_tensor = create_initializer_tensor(
+                name=W_initializer_tensor_name,
+                tensor_array=splitnode_weights[W_initializer_tensor_name],
+                data_type=onnx.TensorProto.FLOAT)            
+            
+            B_initializer_tensor_name = splitnode_name + '_b_' + str(i)
+            B_initializer_tensor = create_initializer_tensor(
+                    name=B_initializer_tensor_name,
+                    tensor_array=splitnode_bias[B_initializer_tensor_name],
+                    data_type=onnx.TensorProto.FLOAT)
+                        
+            graph.initializer.append(W_initializer_tensor)
+            graph.initializer.append(B_initializer_tensor)
+    
+            conv1_node = onnx.helper.make_node(
+                            name=conv1_output_node_name,  # Name is optional.
+                            op_type="Conv",
+            # Must follow the order of input and output definitions.
+            # https://github.com/onnx/onnx/blob/rel-1.9.0/docs/Operators.md#inputs-2---3
+                inputs=[
+                        splitnode_name+'_hsplit_'+str(i), W_initializer_tensor_name,
+                        B_initializer_tensor_name],
+                outputs=[conv1_output_node_name],
+            # The following arguments are attributes.
+                auto_pad =  conv_attributes['auto_pad'],
+                dilations = conv_attributes['dilations'],
+                group = conv_attributes['group'],
+                kernel_shape = conv_attributes['kernel_shape'],
+                pads = conv_attributes['pads'],
+                strides = conv_attributes['strides']
             )
-        onnx_model.graph.node.insert(index, fc_node)
-        gather_fc_list.append('node'+str(i)+'_' +layer_name)
+            
+            graph.node.insert(nodeIdx, conv1_node)
+            nodeIdx = nodeIdx + 1
+        # Create a node (NodeProto)
+        conv_hsum = onnx.helper.make_node(
+            name=splitnode_name + "_wconcat",  # Name is optional.
+            op_type = "Concat",
+            inputs = conv_output_names, # inputs
+            outputs= node_map[splitnode_name].output, # outputs    
+            axis=3,
+         )
+        for name in weight_names:
+            graph.input.remove(input_map[name])
+            graph.initializer.remove(initializer_map[name])
+        graph.node.insert(nodeIdx,conv_hsum)
+        nodeIdx = nodeIdx + 1
+        
+    nodeIdx = find_node_index(graph, splitnode_name)
+    graph.node.remove(graph.node[nodeIdx])    
+    return model
+        #onnx.save(model, "modified.onnx")
     
     
-    gather_node = onnx.helper.make_node(
-        'Sum',
-        inputs = gather_fc_list,
-        outputs = [layer_output_name],
-    )        
-     
-    onnx_model.graph.node.insert(index+1, gather_node)
-    onnx.save(onnx_model, output_model)
-
-
-
-
-
-
-
+    

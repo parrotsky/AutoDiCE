@@ -21,7 +21,6 @@ class Interface:
     def __init__(self, **input_specs):
         self.__dict__.update(input_specs)
         # {'nx01_arm0123': ['conv1_1', 'conv1_2', 'norm1_1', 'pool1_1'], ....}
-        # dictionary {layer_name: attributes, weights}
         self.nodes = list(self.mappings.keys())
         # ['nx01_arm0123','nx01_gpu',...]
         nodes_list = []
@@ -65,85 +64,29 @@ class Interface:
         print ("Total GPU: %d, Total CPU: %d" %(total_gpu, total_cpu))
         self.devices = list(set(nodes_list))
         # ['nx01', 'nx02', ...]
-        self.outputs = []
-        self.InitialAttributes()
-        self.inputs = getInputlayers(self.model)
+        self.graph = load_onnx(self.model)
+        self.value_map = generate_node_dict(self.graph.value_info)
 
-    
-        #)self.GenerateClose()
+    # model graph.
+        self.layers = generate_node_dict(self.graph.node)
+        self.inputs = getInputlayers(self.model)
+        self.outputs = []
+        for i in self.graph.output:
+            self.outputs.append(i.name)
+
+        # dictionary {layer_name: attributes, weights}
+        self.ConsistencyCheck()
+        self.GenerateRankFile()
+        self.ModelSplit()
+        self.GenerateComm()
+
+        #self.GenerateClose()
 
     def __getattr__(self, name):
         value = self[name]
         if isinstance(value, dict):
             value = ObjectDict(value)
         return value
-    def InitialAttributes(self):
-        self.graph = load_onnx(self.model)
-        for i in self.graph.output:
-            self.outputs.append(i.name)
-        self.value_map = generate_node_dict(self.graph.value_info)
-        self.layers = generate_node_dict(self.graph.node)
-
-
-
-    def HorizontalInplace(self, horizontal_file):
-        split_way = {"lop":-1,"lip":0,"height":1, "width":2}
-        split_name = {"lop":"_splitco_","lip":"_splitic_","height":"_splith_","width":"_splitw_"}
-        #concatsum = {"lop":"_oconcat","lip":"_hsum","height":"_hconcat","width":"_wconcat"}
-        horizontal_spec = load_json(horizontal_file)
-        new_model = "horizontal.onnx" 
-        for layer, attribute in horizontal_spec.items():
-            split_ranks = []
-            # attr[2] ---> platforms.
-            for k in attribute[2]:
-                split_ranks.append(self.nodes.index(k))
-                self.mappings[k] = list(map(lambda x: x.replace(layer, layer+ split_name[attribute[0]] + str(self.nodes.index(k))), self.mappings[k]))
-            
-            layer_inputs = self.graph.node[find_node_index(self.graph, layer)].input
-            layer_input_node = [n for n in layer_inputs if n in self.layers][0]
-
-            next_layer = [n for n in self.layers if layer in self.graph.node[find_node_index(self.graph, n)].input]
-            for n in self.layers:
-                if layer in self.graph.node[find_node_index(self.graph, n)].input:
-                    layer_output_node = n
-                    break
-
-            new_mapping = {}
-            for k, v in self.mappings.items():
-                if layer_output_node in v:
-                    #self.mappings[k].append(str(layer)+concatsum[attribute[0]])
-                    self.mappings[k].append(str(layer))
-                    #new_mapping[k]  =str(layer)+concatsum[attribute[0]]
-
-
-                    break
-
-            if split_way[attribute[0]] >=0:
-                for k, v in self.mappings.items():
-                    if layer_input_node in v:
-                        self.mappings[k].append(layer+"_hsplit_"+ str(split_ranks[0]))
-                        break
-
-            self.graph = horizontal_split(self.graph, layer, split_ranks, split_way[attribute[0]], attribute[1])
-            self.layers = generate_node_dict(self.graph.node)
-            
-            model = helper.make_model(self.graph, producer_name='AutoDiCE')
-            onnx.save(model, "modified.onnx")
-            self.model = "modified.onnx"
-            self.inputs = getInputlayers(self.model)
-            self.layers = generate_node_dict(self.graph.node)
-            self.value_map = generate_node_dict(self.graph.value_info)
-
-            for i in self.graph.output:
-                self.outputs.append(i.name)
-
-         
-        
-            
-
-
-
-
 
     def ModelSplit(self):
         # Split model into sub-models.
@@ -172,13 +115,6 @@ class Interface:
     def GenerateComm(self):
         #Mar.06 2022 ""DUMMY cause error in communication
         #
-        ### add multi-output into dist_layer list.
-        for i in range(len(self.nodes)):
-            for each_node in self.mappings[self.nodes[i]]:
-                for j in self.layers[each_node].output:
-                    if j not in self.computingnodes[self.nodes[i]].dist_layers:
-                        self.computingnodes[self.nodes[i]].dist_layers.append(j)
-
         for i in range(len(self.nodes)):
             input_buffers =  getInputlayers('./models/'+self.nodes[i]+'.onnx')
             self.computingnodes[self.nodes[i]].inbuffs = input_buffers
@@ -223,20 +159,8 @@ class Interface:
             ### re order output buffer according to original model
             ### 重新排序输出的buffer
             for layername in self.layers.keys():
-                #temp_output_buffs = (self.computingnodes[self.nodes[i]].outbuffs).copy()
-                #for each_node in self.layers[layername].outputs:
-                #    temp_output_buffs.append(each_node)
-
                 if layername in self.computingnodes[self.nodes[i]].outbuffs:
-                #if layername in temp_output_buffs:
                     orderoutbuffs.append(layername)
-                else:
-                    for each_node in self.layers[layername].output:
-                        if each_node in self.computingnodes[self.nodes[i]].outbuffs:
-                            orderoutbuffs.append(each_node)
-                            break
-
-
             self.computingnodes[self.nodes[i]].outbuffs = orderoutbuffs
 
         ### Output buffers for each sub-model
@@ -302,7 +226,6 @@ class EngineCode():
                     #### i send output_buff to j
                         tag = tag + 1
             tag = tag + 10
-        print (self.commtag)
         self.GenerateHeader(self.cpp)
         self.GenerateBody(self.cpp)
         self.GenerateMain(self.cpp)
@@ -767,8 +690,7 @@ class EngineCode():
 
             for input_buff, source in self.ComputingNodes[engine].receiver.items():
                 input_size = str(input_buff)+".total()"
-                #if (input_buff not in self.Inputs) and ("DUMMY" not in input_buff):
-                if (input_buff not in self.Inputs):
+                if (input_buff not in self.Inputs) and ("DUMMY" not in input_buff):
                     recv_id = self.ComputingNodes[engine].receiver[input_buff]
                     request_id = commdict[(source[0], input_buff, i)]
                     cpp("        MPI_Irecv((float* )"+ str(input_buff)+ ", " +input_size+
@@ -791,8 +713,7 @@ class EngineCode():
                                 related_input_buffers.append(input_name)
                 #print ("related_input_buffers ",related_input_buffers)
                 for input_buff in related_input_buffers:
-                    #if (input_buff not in self.Inputs ) and (input_buff not in already_receive_buffs) and ("DUMMY" not in input_buff):
-                    if (input_buff not in self.Inputs ) and (input_buff not in already_receive_buffs):
+                    if (input_buff not in self.Inputs ) and (input_buff not in already_receive_buffs) and ("DUMMY" not in input_buff):
                         source = self.ComputingNodes[engine].receiver[input_buff][0]
                         request_id = commdict[(source, input_buff, i)]
                         cpp("        MPI_Wait(&requests[" +str(request_id)+"], &status["+str(request_id)+"]);")
@@ -802,8 +723,7 @@ class EngineCode():
         #            if "DUMMY" not in input_buff:
         #                cpp("        ex"+str(i)+".input(\""+str(input_buff)+"\", "+str(input_buff)+");\n")
 
-                #if "DUMMY" not in output_buff:
-                if True:
+                if "DUMMY" not in output_buff:
                     cpp("       ex"+str(i)+".extract(\""+str(output_buff)+"\", "+str(output_buff)+");")
 
                 if output_buff not in self.Outputs:
@@ -811,8 +731,7 @@ class EngineCode():
                     dest_list = self.ComputingNodes[engine].sender[output_buff]
                     for dest in dest_list:
                         request_id = commdict[(i, output_buff, dest)]
-                        #if "DUMMY" not in output_buff:
-                        if True:
+                        if "DUMMY" not in output_buff:
                             cpp("        MPI_Isend((float* )"+ str(output_buff)+ ", " +output_size+
                                 ", MPI_FLOAT, "+str(dest)+", ")
                             cpp("                "+str(self.commtag[(i,output_buff,dest)])+", MPI_COMM_WORLD, &requests[" + str(request_id) +"]);\n")
@@ -821,8 +740,7 @@ class EngineCode():
                 if output_buff not in self.Outputs:
                     dest_list = self.ComputingNodes[engine].sender[output_buff]
                     for dest in dest_list:
-                        #if "DUMMY" not in output_buff:
-                        if True:
+                        if "DUMMY" not in output_buff:
                             request_id = commdict[(i, output_buff, dest)]
                             cpp("            MPI_Wait(&requests[" +str(request_id)+"], &status["+str(request_id)+"]);")
                 #printf("Iteration: %d, IRank: %d  time = %7.2f\n",i, irank, time);  
@@ -837,8 +755,7 @@ class EngineCode():
 
         for input_buff, source in self.ComputingNodes[engine].receiver.items():
             input_size = str(input_buff)+".total()"
-            #if (input_buff not in self.Inputs) and ("DUMMY" not in input_buff):
-            if (input_buff not in self.Inputs) :
+            if (input_buff not in self.Inputs) and ("DUMMY" not in input_buff):
                 recv_id = self.ComputingNodes[engine].receiver[input_buff]
                 request_id = commdict[(source[0], input_buff, i)]
                 cpp("        MPI_Irecv((float* )"+ str(input_buff)+ ", " +input_size+
@@ -861,8 +778,7 @@ class EngineCode():
                             related_input_buffers.append(input_name)
             #print ("related_input_buffers ",related_input_buffers)
             for input_buff in related_input_buffers:
-                #if (input_buff not in self.Inputs ) and (input_buff not in already_receive_buffs) and ("DUMMY" not in input_buff):
-                if (input_buff not in self.Inputs ) and (input_buff not in already_receive_buffs) :
+                if (input_buff not in self.Inputs ) and (input_buff not in already_receive_buffs) and ("DUMMY" not in input_buff):
                     source = self.ComputingNodes[engine].receiver[input_buff][0]
                     request_id = commdict[(source, input_buff, i)]
                     cpp("        MPI_Wait(&requests[" +str(request_id)+"], &status["+str(request_id)+"]);")
@@ -870,8 +786,7 @@ class EngineCode():
             for input_buff in related_input_buffers:
             #    if "DUMMY" not in input_buff:
                 cpp("        ex"+str(i)+".input(\""+str(input_buff)+"\", "+str(input_buff)+");\n")
-            #if "DUMMY" not in output_buff:
-            if True:
+            if "DUMMY" not in output_buff:
                 cpp("       ex"+str(i)+".extract(\""+str(output_buff)+"\", "+str(output_buff)+");")
 
             if output_buff not in self.Outputs:
@@ -879,8 +794,7 @@ class EngineCode():
                 dest_list = self.ComputingNodes[engine].sender[output_buff]
                 for dest in dest_list:
                     request_id = commdict[(i, output_buff, dest)]
-                    #if "DUMMY" not in output_buff:
-                    if True:
+                    if "DUMMY" not in output_buff:
                         cpp("        MPI_Isend((float* )"+ str(output_buff)+ ", " +output_size+
                             ", MPI_FLOAT, "+str(dest)+", ")
                         cpp("                "+str(self.commtag[(i,output_buff,dest)])+", MPI_COMM_WORLD, &requests[" + str(request_id) +"]);\n")
@@ -889,8 +803,7 @@ class EngineCode():
             if output_buff not in self.Outputs:
                 dest_list = self.ComputingNodes[engine].sender[output_buff]
                 for dest in dest_list:
-                    #if "DUMMY" not in output_buff:
-                    if True:
+                    if "DUMMY" not in output_buff:
                         request_id = commdict[(i, output_buff, dest)]
                         cpp("            MPI_Wait(&requests[" +str(request_id)+"], &status["+str(request_id)+"]);")
         if (self.Benchmark):
@@ -1081,7 +994,7 @@ def GroupChromosomeGen(resourceid,gene,modellength, platforms):
 
 def MappingGenerator(resourceid, chromosome, modelfile):
     model = onnx.load(modelfile)
-    #model = onnx.shape_inference.infer_shapes(model)
+    model = onnx.shape_inference.infer_shapes(model)
     graph = model.graph
     for n in graph.node:
         if n.name == '':
@@ -1111,17 +1024,7 @@ if __name__ == '__main__':
     model_len = len(model.graph.node)
     resourceid = { 1:'lenovo_cpu0', 2:'lenovo_cpu1'}
     platforms = ['lenovo']
-    horizontal_file = './horizontal.json'
-    horizontal_spec = load_json('./horizontal.json')
-
-    random_map = load_json('./hmapping.json')
-    #print (horizontal_spec["fc6_1"])
-    #print (horizontal_spec["fc6_1"][0])
-    #print (horizontal_spec["fc6_1"][1])
-    #print (horizontal_spec["fc6_1"][2])
-    #print (random_map)
-
-
+    random_map = load_json('./mapping.json')
 
     #M=3
     #gene = np.array([0,18]).astype(int)
@@ -1132,14 +1035,8 @@ if __name__ == '__main__':
 
     start_time = time.time()
     InputSpecs = Interface(model=input_model, mappings=random_map, platforms=platforms)
-    InputSpecs.HorizontalInplace(horizontal_file)
-    InputSpecs.ConsistencyCheck()
-    InputSpecs.GenerateRankFile()
-    InputSpecs.ModelSplit()
-    InputSpecs.GenerateComm()
-#
-#    print ("Front End time: %f (s)"%(time.time() - start_time))
-#    #cppname, NodesList, ComputingNodes
+    print ("Front End time: %f (s)"%(time.time() - start_time))
+    #cppname, NodesList, ComputingNodes
     GenerateCode = EngineCode(
         CppName = "./models/multinode",
         Platforms = InputSpecs.platforms,
