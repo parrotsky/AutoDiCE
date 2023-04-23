@@ -2,6 +2,11 @@
 
 # Open source
 
+# Update Log.
+Update. 2023 04 23 Add Arm support for HSplit operation (vulkan and cuda not support).
+Update  2023 02 23 Add Hsplit layer for horizontal partitioning.
+
+# Intro
 This repository provides a unified interface for specifying a CNN model with Open Neural Network Exchange (ONNX) support, the model partitioning, and the target edge devices. Inside the CNN inference library, we integrate hybrid OpenMP and MPI to support the exploitation of parallelism among and within the edge devices (i.e., exploiting multi-core execution).
 
   ![AutoDiCE](20220801.png)
