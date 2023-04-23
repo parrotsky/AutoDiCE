@@ -2,8 +2,11 @@
 
 # 如何加入技术交流QQ群？
 
+- 打开QQ→点击群聊搜索→搜索群号637093648→输入问题答案：卷卷卷卷卷→进入群聊→准备接受图灵测试（bushi）
+- 前往QQ搜索Pocky群：677104663(超多大佬)，问题答案：multi level intermediate representation
+
 # 如何看作者b站直播？
-   
+
 - nihui的bilibili直播间：[水竹院落](https://live.bilibili.com/1264617)
 
 # 编译
@@ -17,7 +20,7 @@
    下载 [ncnn-xxxxx-full-source.zip](https://github.com/Tencent/ncnn/releases)
 
 - ## 怎么交叉编译？cmake 工具链怎么设置啊？
-   
+  
    参见 https://github.com/Tencent/ncnn/wiki/how-to-build
 
 - ## The submodules were not downloaded! Please update submodules with "git submodule update --init" and try again
@@ -25,7 +28,7 @@
    如上，下载完整源码。或者按提示执行: git submodule update --init
 
 - ## Could NOT find Protobuf (missing: Protobuf_INCLUDE_DIR)
-   
+  
    sudo apt-get install libprotobuf-dev protobuf-compiler
 
 - ## Could NOT find CUDA (missing: CUDA_TOOLKIT_ROOT_DIR CUDA_INCLUDE_DIRS CUDA_CUDART_LIBRARY)
@@ -105,10 +108,17 @@
    可能的情况：
    - 尝试升级 Android Studio 的 NDK 版本
 
+- ## CMake 3.14.0 or higher is required.  You are running version 2.8.12.2
+```shell
+wget https://github.com/Kitware/CMake/releases/download/v3.18.2/cmake-3.18.2-Linux-x86_64.tar.gz
+tar zxvf cmake-3.18.2-Linux-x86_64.tar.gz
+mv cmake-3.18.2-Linux-x86_64 /opt/cmake-3.18.2
+ln -sf /opt/cmake-3.18.2/bin/* /usr/bin/
+```
 
 # 怎样添加ncnn库到项目中？cmake方式怎么用？
 
-编译ncnn，make install。linux/windows set/export ncnn_DIR 指向 isntall目录下下包含ncnnConfig.cmake 的目录
+编译ncnn，make install。linux/windows set/export ncnn_DIR 指向 install目录下包含ncnnConfig.cmake 的目录
 
 - ## android
 
@@ -193,12 +203,22 @@
 
    检测：
 
-   参考up的一篇文章(https://zhuanlan.zhihu.com/p/128974102)，步骤三就是去掉后处理,再导出onnx,其中去掉后处理可以是项目内测试时去掉后续步骤的结果。
+   参考up的一篇文章<https://zhuanlan.zhihu.com/p/128974102>，步骤三就是去掉后处理,再导出onnx,其中去掉后处理可以是项目内测试时去掉后续步骤的结果。
 
 - ## pytorch 有的层导不出 onnx 怎么办？
 
+ 方式一:
+
    ONNX_ATEN_FALLBACK
 完全自定义的op，先改成能导出的（如 concat slice），转到 ncnn 后再修改 param
+
+ 方式二：
+
+ 可以使用PNNX来试试，参考以下文章大概说明:
+
+   1. [Windows/Linux/macOS 编译 PNNX 步骤](https://zhuanlan.zhihu.com/p/431833958)
+
+   2. [5分钟学会！用 PNNX 转换 TorchScript 模型到 ncnn 模型](https://zhuanlan.zhihu.com/p/427512763)
 
 # 使用
 
@@ -206,7 +226,9 @@
 
 - ## vkCreateInstance failed -9
 
-   驱动
+   出现此类问题请先更新GPU驱动。Please upgrade your GPU driver if you encounter this crash or error.
+   这里提供了一些品牌的GPU驱动下载网址.We have provided some drivers' download pages here.
+   [Intel](https://downloadcenter.intel.com/product/80939/Graphics-Drivers)，[AMD](https://www.amd.com/en/support)，[Nvidia](https://www.nvidia.com/Download/index.aspx)
 
 - ## ModuleNotFoundError: No module named 'ncnn.ncnn'
 
@@ -237,6 +259,8 @@
    Make sure that your param file starts with the magic number 7767517.
 
    you may find more info on use-ncnn-with-alexnet
+   
+   When adding the softmax layer yourself, you need to add 1=1
 
 - ## set_vulkan_compute failed, network use_vulkan_compute disabled
 
@@ -245,10 +269,10 @@
 - ## 多个blob输入，多个blob输出，怎么做？
    多次执行`ex.input()` 和 `ex.extract()`
 ```
-ex.input("data1", in);
-ex.input("data2", in);
-ex.extract("output1", out);
-ex.extract("output2", out);
+ex.input("data1", in_1);
+ex.input("data2", in_2);
+ex.extract("output1", out_1);
+ex.extract("output2", out_2);
 ```
 - ## Extractor extract 多次会重复计算吗？
 
@@ -264,7 +288,13 @@ ex.extract("output2", out);
 
 - ## 如何转换 float 数据为 ncnn::Mat
 
-   [use-ncnn-with-pytorch-or-onnx](https://github.com/Tencent/ncnn/wiki/use-ncnn-with-pytorch-or-onnx)
+   首先，自己申请的内存需要自己管理，此时ncnn::Mat不会自动给你释放你传过来的float数据
+   ``` c++
+   std::vector<float> testData(60, 1.0);                                // 利用std::vector<float>自己管理内存的申请和释放
+   ncnn::Mat in1(60, (void*)testData.data()).reshape(4, 5, 3);          // 把float数据的指针转成void*传过去即可，甚至还可以指定维度(up说最好使用reshape用来解决channel gap)
+   float* a = new float[60];                                            // 自己new一块内存，后续需要自己释放
+   ncnn::Mat in2 = ncnn::Mat(60, (void*)a).reshape(4, 5, 3).clone();    // 使用方法和上面相同，clone() to transfer data owner
+   ```
 
 - ## 如何初始化 ncnn::Mat 为全 0
 
@@ -282,7 +312,7 @@ ex.extract("output2", out);
 
    yuv420sp2rgb yuv420sp2rgb_nv12
 
-   **[@zz大佬](https://github.com/zchrissirhcz/xxYUV)**
+   **[@metarutaiga](https://github.com/metarutaiga/xxYUV)**
 
 - ## 如何 resize crop rotate 图片
 
@@ -336,7 +366,7 @@ ncnn::warpaffine_bilinear_c3(pSrc, SrcWidth, SrcHeight, SrcStride, pDst, DstWidt
 ```
 
 - ## 如何获得中间层的blob输出
-   
+  
    ncnn::Mat output;
    
    ex.extract("your_blob_name", output);
@@ -417,7 +447,7 @@ net.register_custom_layer("MAERegressionOutput", Noop_layer_creator);
    for g++:
 
       setenv("OMP_WAIT_POLICY", "passive", 1)
-    
+   
       reference: https://stackoverflow.com/questions/34439956/vc-crash-when-freeing-a-dll-built-with-openmp
 
 # 跑出来的结果对不上
@@ -576,7 +606,7 @@ void visualize(const char* title, const ncnn::Mat& m)
    使用方式二：
     - ./ncnnoptimize ncnn.param ncnn.bin new.param new.bin flag cutstartname cutendname
     <br/>cutstartname：模型截取的起点
-    <br/>cutendname：模型截取的终点
+     <br/>cutendname：模型截取的终点
 
 
 - ## 如何使用量化工具？
@@ -594,6 +624,23 @@ void visualize(const char* title, const ncnn::Mat& m)
    OMP_WAIT_POLICY=passive
 
 - ## 如何 batch inference？
+
+```
+   int max_batch_size = vkdev->info.compute_queue_count;
+   
+   ncnn::Mat inputs[1000];
+   ncnn::Mat outputs[1000];
+   
+   #pragma omp parallel for num_threads(max_batch_size)
+   for (int i=0; i<1000; i++)
+   {
+       ncnn::Extractor ex = net1.create_extractor();
+       ex.input("data", inputs[i]);
+       ex.extract("prob", outputs[i]);
+   }
+```
+
+   
 
 - ## partial graph inference
 
@@ -617,6 +664,38 @@ net.opt.use_bf16_storage = true;
 - ## net.opt sgemm winograd fp16_storage 各是有什么作用？
 
    对内存消耗的影响
+
+- ## 如何解决显卡进入节能模式造成的一系列问题？
+
+   nVidia显卡（Intel和AMD估计也有）会在它认为的所谓空闲模式下，自动进入 `节能模式`，显存和核心频率就都会降低。
+   
+   简单来说就是如果你的计算任务是 `非连续的`，那么可能会让耗时看起来非常 `不均匀`，当期间有运算空闲间隔发生，显卡进入节能模式，则会在下一次冷启动时发生计算耗时远超正常耗时几倍的情况，如下日志所示：
+
+   ```cpp
+   //开始播放
+   Total: 162ms, Diff: 0ms, GLTex2Mat: 7ms, calc: 152ms, Mat2GLTex: 3ms
+   Total: 43ms, Diff: 0ms, GLTex2Mat: 3ms, calc: 35ms, Mat2GLTex: 2ms
+   Total: 45ms, Diff: 0ms, GLTex2Mat: 3ms, calc: 37ms, Mat2GLTex: 3ms
+   Total: 40ms, Diff: 0ms, GLTex2Mat: 3ms, calc: 32ms, Mat2GLTex: 4ms
+   //暂停3秒
+   //继续播放
+   Total: 190ms, Diff: 0ms, GLTex2Mat: 9ms, calc: 177ms, Mat2GLTex: 3ms
+   Total: 134ms, Diff: 0ms, GLTex2Mat: 5ms, calc: 110ms, Mat2GLTex: 18ms
+   Total: 40ms, Diff: 0ms, GLTex2Mat: 3ms, calc: 34ms, Mat2GLTex: 2ms
+   Total: 42ms, Diff: 0ms, GLTex2Mat: 3ms, calc: 36ms, Mat2GLTex: 2ms
+   Total: 47ms, Diff: 0ms, GLTex2Mat: 5ms, calc: 38ms, Mat2GLTex: 3ms
+   ...
+   ```
+
+   在对时间不敏感的项目上，这个问题没什么大不了的，完全可以忽略，但是有些业务场景上必须精准推估下一帧及其未来几帧的从上传、计算到渲染的耗时情况，则这种现象将会给开发者打开些许困扰。
+
+   ### 3种解决方法
+   * 联系显卡厂商，让其更新驱动将你的应用加入到免节能模式的白名单。
+     * 优点：你什么都不用改。缺点：沟通困难，很可能显卡厂商根本不理你。
+   * [显卡控制面板] - [管理3D设置] - [电源管理模式]，改成：[最高性能优先]。
+     * 优点：不用改代码。缺点：如果是部署端是小白用户，需要编写手册手把手教他。
+   * 可以空闲（暂停）时定期灌一些心跳计算包的任务进去（放1x1小图）让GPU维持在高性能状态。
+     * 优点：需要改代码。缺点：不低碳不环保。
 
 # 白嫖项目
 

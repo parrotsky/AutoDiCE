@@ -17,43 +17,6 @@
 
 #include "platform.h"
 
-#if NCNN_CUDA
-
-#include "cuda_util.h"
-
-namespace ncnn {
-
-struct NCNN_EXPORT CudaGpuInfo {
-    int type{-1};
-    cudaDeviceProp cuda_properties{};
-};
-
-
-class NCNN_EXPORT CudaDevice
-{
-public:
-	CudaDevice(int device_index);
-	~CudaDevice();
-
-	int device_index{-1};
-    CudaGpuInfo info{};
-
-
-};
-
-
-
-NCNN_EXPORT void try_initialize_cuda_gpu_instances();
-NCNN_EXPORT int get_cuda_gpu_count();
-NCNN_EXPORT int get_current_cuda_gpu_index();
-NCNN_EXPORT const CudaGpuInfo get_cuda_gpu_info(int device_index);
-NCNN_EXPORT CudaDevice* get_cuda_gpu_device(int cuda_device_index);
-NCNN_EXPORT CudaDevice* get_current_gpu_device();
-
-
-}
-#endif
-
 #if NCNN_VULKAN
 
 #include "mat.h"
@@ -65,7 +28,19 @@ NCNN_EXPORT CudaDevice* get_current_gpu_device();
 namespace ncnn {
 
 // instance
+
+// Create VkInstance and initialize some objects that need to be calculated by GPU
+// Creates a VkInstance object, Checks the extended attributes supported by the Vulkan instance concerned,
+// Initializes, and creates Vulkan validation layers (if ENABLE_VALIDATION_LAYER is enabled),
+// Iterates over all supported physical devices, etc.
 NCNN_EXPORT int create_gpu_instance();
+
+// Get global VkInstance variable
+// Must be called after create_gpu_instance() and before destroy_gpu_instance()
+NCNN_EXPORT VkInstance get_gpu_instance();
+
+// Destroy VkInstance object and free the memory of the associated object
+// Usually called in the destructor of the main program exit
 NCNN_EXPORT void destroy_gpu_instance();
 
 // instance extension capability
@@ -105,6 +80,9 @@ extern PFN_vkGetPhysicalDeviceSurfacePresentModesKHR vkGetPhysicalDeviceSurfaceP
 // VK_KHR_android_surface
 extern PFN_vkCreateAndroidSurfaceKHR vkCreateAndroidSurfaceKHR;
 #endif // __ANDROID_API__ >= 26
+
+// VK_NV_cooperative_matrix
+extern PFN_vkGetPhysicalDeviceCooperativeMatrixPropertiesNV vkGetPhysicalDeviceCooperativeMatrixPropertiesNV;
 
 // get info
 NCNN_EXPORT int get_gpu_count();
@@ -193,10 +171,15 @@ public:
     // ycbcr conversion feature
     bool support_ycbcr_conversion() const;
 
+    // cooperative matrix feature
+    bool support_cooperative_matrix() const;
+    bool support_cooperative_matrix_16_8_8() const;
+
     // extension capability
     int support_VK_KHR_8bit_storage() const;
     int support_VK_KHR_16bit_storage() const;
     int support_VK_KHR_bind_memory2() const;
+    int support_VK_KHR_buffer_device_address() const;
     int support_VK_KHR_create_renderpass2() const;
     int support_VK_KHR_dedicated_allocation() const;
     int support_VK_KHR_descriptor_update_template() const;
@@ -206,6 +189,7 @@ public:
     int support_VK_KHR_maintenance2() const;
     int support_VK_KHR_maintenance3() const;
     int support_VK_KHR_multiview() const;
+    int support_VK_KHR_portability_subset() const;
     int support_VK_KHR_push_descriptor() const;
     int support_VK_KHR_sampler_ycbcr_conversion() const;
     int support_VK_KHR_shader_float16_int8() const;
@@ -214,10 +198,13 @@ public:
     int support_VK_KHR_swapchain() const;
     int support_VK_EXT_descriptor_indexing() const;
     int support_VK_EXT_memory_budget() const;
+    int support_VK_EXT_memory_priority() const;
     int support_VK_EXT_queue_family_foreign() const;
+    int support_VK_AMD_device_coherent_memory() const;
 #if __ANDROID_API__ >= 26
     int support_VK_ANDROID_external_memory_android_hardware_buffer() const;
 #endif // __ANDROID_API__ >= 26
+    int support_VK_NV_cooperative_matrix() const;
 
 private:
     GpuInfo(const GpuInfo&);

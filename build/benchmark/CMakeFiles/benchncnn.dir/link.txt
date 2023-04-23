@@ -1,0 +1,1 @@
+mpic++ -O3 -DNDEBUG -rdynamic CMakeFiles/benchncnn.dir/benchncnn.cpp.o -o benchncnn  ../src/libncnn.a -lgomp -Wl,-Bstatic -lpthread -Wl,-Bdynamic 

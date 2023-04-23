@@ -1,0 +1,1 @@
+mpic++ -O3 -DNDEBUG -rdynamic CMakeFiles/mxnet2ncnn.dir/mxnet2ncnn.cpp.o -o mxnet2ncnn 

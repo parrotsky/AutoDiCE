@@ -39,6 +39,18 @@ int Requantize_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
     int elempack = bottom_blob.elempack;
 
 #if __SSE2__
+#if __AVX512F__
+    if (elempack == 16)
+    {
+        Mat tmp;
+        convert_packing(bottom_blob, tmp, 8, opt);
+
+        forward(tmp, top_blob, opt);
+
+        return 0;
+    }
+#endif // __AVX512F__
+
     if (elempack == 8)
     {
         if (dims == 1)
@@ -102,7 +114,7 @@ int Requantize_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
 
 #if __AVX__
                         __m256 _v = _mm256_cvtepi32_ps(_mm256_loadu_si256((const __m256i*)intptr));
-                        _v = _mm256_fmadd_ps(_v, _scale_in, _bias);
+                        _v = _mm256_comp_fmadd_ps(_v, _scale_in, _bias);
                         _v = activation_avx(_v, activation_type, activation_params);
                         _v = _mm256_mul_ps(_v, _scale_out);
                         *(int64_t*)ptr = float2int8_avx(_v);
@@ -130,7 +142,7 @@ int Requantize_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
 #if __AVX__
                         __m256 _bias = _mm256_loadu_ps((const float*)bias_data + i * 8);
                         __m256 _v = _mm256_cvtepi32_ps(_mm256_loadu_si256((const __m256i*)intptr));
-                        _v = _mm256_fmadd_ps(_v, _scale_in, _bias);
+                        _v = _mm256_comp_fmadd_ps(_v, _scale_in, _bias);
                         _v = activation_avx(_v, activation_type, activation_params);
                         _v = _mm256_mul_ps(_v, _scale_out);
                         *(int64_t*)ptr = float2int8_avx(_v);
@@ -205,7 +217,7 @@ int Requantize_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
 #if __AVX__
                         __m256 _scale_out = _mm256_loadu_ps((const float*)scale_out_data + i * 8);
                         __m256 _v = _mm256_cvtepi32_ps(_mm256_loadu_si256((const __m256i*)intptr));
-                        _v = _mm256_fmadd_ps(_v, _scale_in, _bias);
+                        _v = _mm256_comp_fmadd_ps(_v, _scale_in, _bias);
                         _v = activation_avx(_v, activation_type, activation_params);
                         _v = _mm256_mul_ps(_v, _scale_out);
                         *(int64_t*)ptr = float2int8_avx(_v);
@@ -236,7 +248,7 @@ int Requantize_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                         __m256 _scale_out = _mm256_loadu_ps((const float*)scale_out_data + i * 8);
                         __m256 _bias = _mm256_loadu_ps((const float*)bias_data + i * 8);
                         __m256 _v = _mm256_cvtepi32_ps(_mm256_loadu_si256((const __m256i*)intptr));
-                        _v = _mm256_fmadd_ps(_v, _scale_in, _bias);
+                        _v = _mm256_comp_fmadd_ps(_v, _scale_in, _bias);
                         _v = activation_avx(_v, activation_type, activation_params);
                         _v = _mm256_mul_ps(_v, _scale_out);
                         *(int64_t*)ptr = float2int8_avx(_v);
@@ -313,7 +325,7 @@ int Requantize_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
 #if __AVX__
                         __m256 _scale_in = _mm256_loadu_ps((const float*)scale_in_data + i * 8);
                         __m256 _v = _mm256_cvtepi32_ps(_mm256_loadu_si256((const __m256i*)intptr));
-                        _v = _mm256_fmadd_ps(_v, _scale_in, _bias);
+                        _v = _mm256_comp_fmadd_ps(_v, _scale_in, _bias);
                         _v = activation_avx(_v, activation_type, activation_params);
                         _v = _mm256_mul_ps(_v, _scale_out);
                         *(int64_t*)ptr = float2int8_avx(_v);
@@ -344,7 +356,7 @@ int Requantize_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                         __m256 _scale_in = _mm256_loadu_ps((const float*)scale_in_data + i * 8);
                         __m256 _bias = _mm256_loadu_ps((const float*)bias_data + i * 8);
                         __m256 _v = _mm256_cvtepi32_ps(_mm256_loadu_si256((const __m256i*)intptr));
-                        _v = _mm256_fmadd_ps(_v, _scale_in, _bias);
+                        _v = _mm256_comp_fmadd_ps(_v, _scale_in, _bias);
                         _v = activation_avx(_v, activation_type, activation_params);
                         _v = _mm256_mul_ps(_v, _scale_out);
                         *(int64_t*)ptr = float2int8_avx(_v);
@@ -419,7 +431,7 @@ int Requantize_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                         __m256 _scale_in = _mm256_loadu_ps((const float*)scale_in_data + i * 8);
                         __m256 _scale_out = _mm256_loadu_ps((const float*)scale_out_data + i * 8);
                         __m256 _v = _mm256_cvtepi32_ps(_mm256_loadu_si256((const __m256i*)intptr));
-                        _v = _mm256_fmadd_ps(_v, _scale_in, _bias);
+                        _v = _mm256_comp_fmadd_ps(_v, _scale_in, _bias);
                         _v = activation_avx(_v, activation_type, activation_params);
                         _v = _mm256_mul_ps(_v, _scale_out);
                         *(int64_t*)ptr = float2int8_avx(_v);
@@ -453,7 +465,7 @@ int Requantize_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                         __m256 _scale_out = _mm256_loadu_ps((const float*)scale_out_data + i * 8);
                         __m256 _bias = _mm256_loadu_ps((const float*)bias_data + i * 8);
                         __m256 _v = _mm256_cvtepi32_ps(_mm256_loadu_si256((const __m256i*)intptr));
-                        _v = _mm256_fmadd_ps(_v, _scale_in, _bias);
+                        _v = _mm256_comp_fmadd_ps(_v, _scale_in, _bias);
                         _v = activation_avx(_v, activation_type, activation_params);
                         _v = _mm256_mul_ps(_v, _scale_out);
                         *(int64_t*)ptr = float2int8_avx(_v);
@@ -556,7 +568,7 @@ int Requantize_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                     {
 #if __AVX__
                         __m256 _v = _mm256_cvtepi32_ps(_mm256_loadu_si256((const __m256i*)intptr));
-                        _v = _mm256_fmadd_ps(_v, _scale_in, _bias);
+                        _v = _mm256_comp_fmadd_ps(_v, _scale_in, _bias);
                         _v = activation_avx(_v, activation_type, activation_params);
                         _v = _mm256_mul_ps(_v, _scale_out);
                         *(int64_t*)ptr = float2int8_avx(_v);
@@ -658,7 +670,7 @@ int Requantize_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                     {
 #if __AVX__
                         __m256 _v = _mm256_cvtepi32_ps(_mm256_loadu_si256((const __m256i*)intptr));
-                        _v = _mm256_fmadd_ps(_v, _scale_in, _bias);
+                        _v = _mm256_comp_fmadd_ps(_v, _scale_in, _bias);
                         _v = activation_avx(_v, activation_type, activation_params);
                         _v = _mm256_mul_ps(_v, _scale_out);
                         *(int64_t*)ptr = float2int8_avx(_v);
@@ -714,10 +726,10 @@ int Requantize_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                         _v = activation_sse(_v, activation_type, activation_params);
                         _v = _mm_mul_ps(_v, _scale_out);
                         int64_t v = float2int8_sse(_v, _v);
-                        ptr[0] = (v >> 56) & 0xff;
-                        ptr[1] = (v >> 48) & 0xff;
-                        ptr[2] = (v >> 40) & 0xff;
-                        ptr[3] = (v >> 32) & 0xff;
+                        ptr[0] = (v >> 32) & 0xff;
+                        ptr[1] = (v >> 40) & 0xff;
+                        ptr[2] = (v >> 48) & 0xff;
+                        ptr[3] = (v >> 56) & 0xff;
                     }
                 }
                 else if (bias_data_size == 1)
@@ -735,10 +747,10 @@ int Requantize_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                         _v = activation_sse(_v, activation_type, activation_params);
                         _v = _mm_mul_ps(_v, _scale_out);
                         int64_t v = float2int8_sse(_v, _v);
-                        ptr[0] = (v >> 56) & 0xff;
-                        ptr[1] = (v >> 48) & 0xff;
-                        ptr[2] = (v >> 40) & 0xff;
-                        ptr[3] = (v >> 32) & 0xff;
+                        ptr[0] = (v >> 32) & 0xff;
+                        ptr[1] = (v >> 40) & 0xff;
+                        ptr[2] = (v >> 48) & 0xff;
+                        ptr[3] = (v >> 56) & 0xff;
                     }
                 }
                 else
@@ -755,10 +767,10 @@ int Requantize_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                         _v = activation_sse(_v, activation_type, activation_params);
                         _v = _mm_mul_ps(_v, _scale_out);
                         int64_t v = float2int8_sse(_v, _v);
-                        ptr[0] = (v >> 56) & 0xff;
-                        ptr[1] = (v >> 48) & 0xff;
-                        ptr[2] = (v >> 40) & 0xff;
-                        ptr[3] = (v >> 32) & 0xff;
+                        ptr[0] = (v >> 32) & 0xff;
+                        ptr[1] = (v >> 40) & 0xff;
+                        ptr[2] = (v >> 48) & 0xff;
+                        ptr[3] = (v >> 56) & 0xff;
                     }
                 }
             }
@@ -780,10 +792,10 @@ int Requantize_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                         _v = activation_sse(_v, activation_type, activation_params);
                         _v = _mm_mul_ps(_v, _scale_out);
                         int64_t v = float2int8_sse(_v, _v);
-                        ptr[0] = (v >> 56) & 0xff;
-                        ptr[1] = (v >> 48) & 0xff;
-                        ptr[2] = (v >> 40) & 0xff;
-                        ptr[3] = (v >> 32) & 0xff;
+                        ptr[0] = (v >> 32) & 0xff;
+                        ptr[1] = (v >> 40) & 0xff;
+                        ptr[2] = (v >> 48) & 0xff;
+                        ptr[3] = (v >> 56) & 0xff;
                     }
                 }
                 else if (bias_data_size == 1)
@@ -802,10 +814,10 @@ int Requantize_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                         _v = activation_sse(_v, activation_type, activation_params);
                         _v = _mm_mul_ps(_v, _scale_out);
                         int64_t v = float2int8_sse(_v, _v);
-                        ptr[0] = (v >> 56) & 0xff;
-                        ptr[1] = (v >> 48) & 0xff;
-                        ptr[2] = (v >> 40) & 0xff;
-                        ptr[3] = (v >> 32) & 0xff;
+                        ptr[0] = (v >> 32) & 0xff;
+                        ptr[1] = (v >> 40) & 0xff;
+                        ptr[2] = (v >> 48) & 0xff;
+                        ptr[3] = (v >> 56) & 0xff;
                     }
                 }
                 else
@@ -823,10 +835,10 @@ int Requantize_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                         _v = activation_sse(_v, activation_type, activation_params);
                         _v = _mm_mul_ps(_v, _scale_out);
                         int64_t v = float2int8_sse(_v, _v);
-                        ptr[0] = (v >> 56) & 0xff;
-                        ptr[1] = (v >> 48) & 0xff;
-                        ptr[2] = (v >> 40) & 0xff;
-                        ptr[3] = (v >> 32) & 0xff;
+                        ptr[0] = (v >> 32) & 0xff;
+                        ptr[1] = (v >> 40) & 0xff;
+                        ptr[2] = (v >> 48) & 0xff;
+                        ptr[3] = (v >> 56) & 0xff;
                     }
                 }
             }
@@ -848,10 +860,10 @@ int Requantize_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                         _v = activation_sse(_v, activation_type, activation_params);
                         _v = _mm_mul_ps(_v, _scale_out);
                         int64_t v = float2int8_sse(_v, _v);
-                        ptr[0] = (v >> 56) & 0xff;
-                        ptr[1] = (v >> 48) & 0xff;
-                        ptr[2] = (v >> 40) & 0xff;
-                        ptr[3] = (v >> 32) & 0xff;
+                        ptr[0] = (v >> 32) & 0xff;
+                        ptr[1] = (v >> 40) & 0xff;
+                        ptr[2] = (v >> 48) & 0xff;
+                        ptr[3] = (v >> 56) & 0xff;
                     }
                 }
                 else if (bias_data_size == 1)
@@ -870,10 +882,10 @@ int Requantize_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                         _v = activation_sse(_v, activation_type, activation_params);
                         _v = _mm_mul_ps(_v, _scale_out);
                         int64_t v = float2int8_sse(_v, _v);
-                        ptr[0] = (v >> 56) & 0xff;
-                        ptr[1] = (v >> 48) & 0xff;
-                        ptr[2] = (v >> 40) & 0xff;
-                        ptr[3] = (v >> 32) & 0xff;
+                        ptr[0] = (v >> 32) & 0xff;
+                        ptr[1] = (v >> 40) & 0xff;
+                        ptr[2] = (v >> 48) & 0xff;
+                        ptr[3] = (v >> 56) & 0xff;
                     }
                 }
                 else
@@ -891,10 +903,10 @@ int Requantize_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                         _v = activation_sse(_v, activation_type, activation_params);
                         _v = _mm_mul_ps(_v, _scale_out);
                         int64_t v = float2int8_sse(_v, _v);
-                        ptr[0] = (v >> 56) & 0xff;
-                        ptr[1] = (v >> 48) & 0xff;
-                        ptr[2] = (v >> 40) & 0xff;
-                        ptr[3] = (v >> 32) & 0xff;
+                        ptr[0] = (v >> 32) & 0xff;
+                        ptr[1] = (v >> 40) & 0xff;
+                        ptr[2] = (v >> 48) & 0xff;
+                        ptr[3] = (v >> 56) & 0xff;
                     }
                 }
             }
@@ -915,10 +927,10 @@ int Requantize_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                         _v = activation_sse(_v, activation_type, activation_params);
                         _v = _mm_mul_ps(_v, _scale_out);
                         int64_t v = float2int8_sse(_v, _v);
-                        ptr[0] = (v >> 56) & 0xff;
-                        ptr[1] = (v >> 48) & 0xff;
-                        ptr[2] = (v >> 40) & 0xff;
-                        ptr[3] = (v >> 32) & 0xff;
+                        ptr[0] = (v >> 32) & 0xff;
+                        ptr[1] = (v >> 40) & 0xff;
+                        ptr[2] = (v >> 48) & 0xff;
+                        ptr[3] = (v >> 56) & 0xff;
                     }
                 }
                 else if (bias_data_size == 1)
@@ -938,10 +950,10 @@ int Requantize_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                         _v = activation_sse(_v, activation_type, activation_params);
                         _v = _mm_mul_ps(_v, _scale_out);
                         int64_t v = float2int8_sse(_v, _v);
-                        ptr[0] = (v >> 56) & 0xff;
-                        ptr[1] = (v >> 48) & 0xff;
-                        ptr[2] = (v >> 40) & 0xff;
-                        ptr[3] = (v >> 32) & 0xff;
+                        ptr[0] = (v >> 32) & 0xff;
+                        ptr[1] = (v >> 40) & 0xff;
+                        ptr[2] = (v >> 48) & 0xff;
+                        ptr[3] = (v >> 56) & 0xff;
                     }
                 }
                 else
@@ -960,10 +972,10 @@ int Requantize_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                         _v = activation_sse(_v, activation_type, activation_params);
                         _v = _mm_mul_ps(_v, _scale_out);
                         int64_t v = float2int8_sse(_v, _v);
-                        ptr[0] = (v >> 56) & 0xff;
-                        ptr[1] = (v >> 48) & 0xff;
-                        ptr[2] = (v >> 40) & 0xff;
-                        ptr[3] = (v >> 32) & 0xff;
+                        ptr[0] = (v >> 32) & 0xff;
+                        ptr[1] = (v >> 40) & 0xff;
+                        ptr[2] = (v >> 48) & 0xff;
+                        ptr[3] = (v >> 56) & 0xff;
                     }
                 }
             }
@@ -1072,10 +1084,10 @@ int Requantize_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                             _v = activation_sse(_v, activation_type, activation_params);
                             _v = _mm_mul_ps(_v, _scale_out);
                             int64_t v = float2int8_sse(_v, _v);
-                            ptr0[0] = (v >> 56) & 0xff;
-                            ptr1[0] = (v >> 48) & 0xff;
-                            ptr2[0] = (v >> 40) & 0xff;
-                            ptr3[0] = (v >> 32) & 0xff;
+                            ptr0[0] = (v >> 32) & 0xff;
+                            ptr1[0] = (v >> 40) & 0xff;
+                            ptr2[0] = (v >> 48) & 0xff;
+                            ptr3[0] = (v >> 56) & 0xff;
 
                             intptr += 4;
                             ptr0 += 1;
@@ -1107,10 +1119,10 @@ int Requantize_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                             _v = activation_sse(_v, activation_type, activation_params);
                             _v = _mm_mul_ps(_v, _scale_out);
                             int64_t v = float2int8_sse(_v, _v);
-                            ptr0[0] = (v >> 56) & 0xff;
-                            ptr1[0] = (v >> 48) & 0xff;
-                            ptr2[0] = (v >> 40) & 0xff;
-                            ptr3[0] = (v >> 32) & 0xff;
+                            ptr0[0] = (v >> 32) & 0xff;
+                            ptr1[0] = (v >> 40) & 0xff;
+                            ptr2[0] = (v >> 48) & 0xff;
+                            ptr3[0] = (v >> 56) & 0xff;
 
                             intptr += 4;
                             ptr0 += 1;
@@ -1227,11 +1239,11 @@ int Requantize_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                             _v = _mm_mul_ps(_v, _scale_in);
                             _v = activation_sse(_v, activation_type, activation_params);
                             _v = _mm_mul_ps(_v, _scale_out);
-                            int64_t v = float2int8_sse(_v, _v);
-                            ptr0[0] = (v >> 56) & 0xff;
-                            ptr1[0] = (v >> 48) & 0xff;
-                            ptr2[0] = (v >> 40) & 0xff;
-                            ptr3[0] = (v >> 32) & 0xff;
+                            int32_t v = float2int8_sse(_v);
+                            ptr0[0] = (v >> 0) & 0xff;
+                            ptr1[0] = (v >> 8) & 0xff;
+                            ptr2[0] = (v >> 16) & 0xff;
+                            ptr3[0] = (v >> 24) & 0xff;
 
                             intptr += 4;
                             ptr0 += 1;
@@ -1262,11 +1274,11 @@ int Requantize_x86::forward(const Mat& bottom_blob, Mat& top_blob, const Option&
                             _v = _mm_add_ps(_bias, _mm_mul_ps(_v, _scale_in));
                             _v = activation_sse(_v, activation_type, activation_params);
                             _v = _mm_mul_ps(_v, _scale_out);
-                            int64_t v = float2int8_sse(_v, _v);
-                            ptr0[0] = (v >> 56) & 0xff;
-                            ptr1[0] = (v >> 48) & 0xff;
-                            ptr2[0] = (v >> 40) & 0xff;
-                            ptr3[0] = (v >> 32) & 0xff;
+                            int32_t v = float2int8_sse(_v);
+                            ptr0[0] = (v >> 0) & 0xff;
+                            ptr1[0] = (v >> 8) & 0xff;
+                            ptr2[0] = (v >> 16) & 0xff;
+                            ptr3[0] = (v >> 24) & 0xff;
 
                             intptr += 4;
                             ptr0 += 1;

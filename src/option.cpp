@@ -21,7 +21,7 @@ namespace ncnn {
 Option::Option()
 {
     lightmode = true;
-    num_threads = get_big_cpu_count();
+    num_threads = get_physical_big_cpu_count();
     blob_allocator = 0;
     workspace_allocator = 0;
 
@@ -60,11 +60,20 @@ Option::Option()
     use_image_storage = false;
     use_tensor_storage = false;
 
-    use_weight_fp16_storage = false;
+    use_reserved_0 = false;
 
     flush_denormals = 3;
 
     use_local_pool_allocator = true;
+
+    use_shader_local_memory = true;
+    use_cooperative_matrix = true;
+
+    use_winograd23_convolution = true;
+    use_winograd43_convolution = true;
+    use_winograd63_convolution = true;
+
+    use_a53_a55_optimized_kernel = is_current_thread_running_on_a53_a55();
 }
 
 } // namespace ncnn

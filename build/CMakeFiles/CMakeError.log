@@ -1,0 +1,36 @@
+Performing C++ SOURCE FILE Test NCNN_COMPILER_SUPPORT_X86_AVX512_BF16 failed with the following output:
+Change Dir: /home/sky/vitncnn/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_bea93/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_bea93.dir/build.make CMakeFiles/cmTC_bea93.dir/build
+gmake[1]: Entering directory '/home/sky/vitncnn/build/CMakeFiles/CMakeTmp'
+Building CXX object CMakeFiles/cmTC_bea93.dir/src.cxx.o
+/usr/bin/c++ -DNCNN_COMPILER_SUPPORT_X86_AVX512_BF16  -mfma -mf16c -mavx512f -mavx512cd -mavx512bw -mavx512dq -mavx512vl -mavx512bf16 -o CMakeFiles/cmTC_bea93.dir/src.cxx.o -c /home/sky/vitncnn/build/CMakeFiles/CMakeTmp/src.cxx
+/home/sky/vitncnn/build/CMakeFiles/CMakeTmp/src.cxx: In function ‘int main()’:
+/home/sky/vitncnn/build/CMakeFiles/CMakeTmp/src.cxx:2:85: error: ‘_mm512_cvtpbh_ps’ was not declared in this scope; did you mean ‘_mm512_cvtph_ps’?
+    2 | int main() { __m256bh _s; __m512bh _a, _b; _s = _mm512_cvtneps_pbh(_mm512_dpbf16_ps(_mm512_cvtpbh_ps(_s), _a, _b)); return 0; }
+      |                                                                                     ^~~~~~~~~~~~~~~~
+      |                                                                                     _mm512_cvtph_ps
+gmake[1]: *** [CMakeFiles/cmTC_bea93.dir/build.make:78: CMakeFiles/cmTC_bea93.dir/src.cxx.o] Error 1
+gmake[1]: Leaving directory '/home/sky/vitncnn/build/CMakeFiles/CMakeTmp'
+gmake: *** [Makefile:127: cmTC_bea93/fast] Error 2
+
+
+Source file was:
+#include <immintrin.h>
+int main() { __m256bh _s; __m512bh _a, _b; _s = _mm512_cvtneps_pbh(_mm512_dpbf16_ps(_mm512_cvtpbh_ps(_s), _a, _b)); return 0; }
+Performing C++ SOURCE FILE Test NCNN_COMPILER_SUPPORT_X86_AVX512_FP16 failed with the following output:
+Change Dir: /home/sky/vitncnn/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_04c01/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_04c01.dir/build.make CMakeFiles/cmTC_04c01.dir/build
+gmake[1]: Entering directory '/home/sky/vitncnn/build/CMakeFiles/CMakeTmp'
+Building CXX object CMakeFiles/cmTC_04c01.dir/src.cxx.o
+/usr/bin/c++ -DNCNN_COMPILER_SUPPORT_X86_AVX512_FP16  -mfma -mf16c -mavx512f -mavx512cd -mavx512bw -mavx512dq -mavx512vl -mavx512fp16 -o CMakeFiles/cmTC_04c01.dir/src.cxx.o -c /home/sky/vitncnn/build/CMakeFiles/CMakeTmp/src.cxx
+c++: error: unrecognized command-line option ‘-mavx512fp16’; did you mean ‘-mavx512bf16’?
+gmake[1]: *** [CMakeFiles/cmTC_04c01.dir/build.make:78: CMakeFiles/cmTC_04c01.dir/src.cxx.o] Error 1
+gmake[1]: Leaving directory '/home/sky/vitncnn/build/CMakeFiles/CMakeTmp'
+gmake: *** [Makefile:127: cmTC_04c01/fast] Error 2
+
+
+Source file was:
+#include <immintrin.h>
+int main() { __m512h _s, _a, _b; _s = _mm512_fmadd_ph(_s, _a, _b); __m512 _s2; _s2 = _mm512_cvtxph_ps(_mm512_cvtxps_ph(_s2)); return 0; }

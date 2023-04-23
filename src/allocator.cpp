@@ -16,14 +16,6 @@
 
 #include "gpu.h"
 #include "pipeline.h"
-#include <chrono>
-
-#include <algorithm>
-
-#if NCNN_CUDA
-#include "cuda_util.h"
-#include <cuda_runtime.h>
-#endif
 
 #if __ANDROID_API__ >= 26
 #include <android/hardware_buffer.h>
@@ -41,6 +33,7 @@ public:
     Mutex budgets_lock;
     Mutex payouts_lock;
     unsigned int size_compare_ratio; // 0~256
+    size_t size_drop_threshold;
     std::list<std::pair<size_t, void*> > budgets;
     std::list<std::pair<size_t, void*> > payouts;
 };
@@ -48,7 +41,8 @@ public:
 PoolAllocator::PoolAllocator()
     : Allocator(), d(new PoolAllocatorPrivate)
 {
-    d->size_compare_ratio = 192; // 0.75f * 256
+    d->size_compare_ratio = 0;
+    d->size_drop_threshold = 10;
 }
 
 PoolAllocator::~PoolAllocator()
@@ -107,12 +101,17 @@ void PoolAllocator::set_size_compare_ratio(float scr)
     d->size_compare_ratio = (unsigned int)(scr * 256);
 }
 
+void PoolAllocator::set_size_drop_threshold(size_t threshold)
+{
+    d->size_drop_threshold = threshold;
+}
+
 void* PoolAllocator::fastMalloc(size_t size)
 {
     d->budgets_lock.lock();
 
     // find free budget
-    std::list<std::pair<size_t, void*> >::iterator it = d->budgets.begin();
+    std::list<std::pair<size_t, void*> >::iterator it = d->budgets.begin(), it_max = d->budgets.begin(), it_min = d->budgets.begin();
     for (; it != d->budgets.end(); ++it)
     {
         size_t bs = it->first;
@@ -133,6 +132,35 @@ void* PoolAllocator::fastMalloc(size_t size)
             d->payouts_lock.unlock();
 
             return ptr;
+        }
+
+        if (bs < it_min->first)
+        {
+            it_min = it;
+        }
+        if (bs > it_max->first)
+        {
+            it_max = it;
+        }
+    }
+
+    if (d->budgets.size() >= d->size_drop_threshold)
+    {
+        // All chunks in pool are not chosen. Then try to drop some outdated
+        // chunks and return them to OS.
+        if (it_max->first < size)
+        {
+            // Current query is asking for a chunk larger than any cached chunks.
+            // Then remove the smallest one.
+            ncnn::fastFree(it_min->second);
+            d->budgets.erase(it_min);
+        }
+        else if (it_min->first > size)
+        {
+            // Current query is asking for a chunk smaller than any cached chunks.
+            // Then remove the largest one.
+            ncnn::fastFree(it_max->second);
+            d->budgets.erase(it_max);
         }
     }
 
@@ -186,6 +214,7 @@ class UnlockedPoolAllocatorPrivate
 {
 public:
     unsigned int size_compare_ratio; // 0~256
+    size_t size_drop_threshold;
     std::list<std::pair<size_t, void*> > budgets;
     std::list<std::pair<size_t, void*> > payouts;
 };
@@ -193,7 +222,8 @@ public:
 UnlockedPoolAllocator::UnlockedPoolAllocator()
     : Allocator(), d(new UnlockedPoolAllocatorPrivate)
 {
-    d->size_compare_ratio = 192; // 0.75f * 256
+    d->size_compare_ratio = 0;
+    d->size_drop_threshold = 10;
 }
 
 UnlockedPoolAllocator::~UnlockedPoolAllocator()
@@ -248,10 +278,15 @@ void UnlockedPoolAllocator::set_size_compare_ratio(float scr)
     d->size_compare_ratio = (unsigned int)(scr * 256);
 }
 
+void UnlockedPoolAllocator::set_size_drop_threshold(size_t threshold)
+{
+    d->size_drop_threshold = threshold;
+}
+
 void* UnlockedPoolAllocator::fastMalloc(size_t size)
 {
     // find free budget
-    std::list<std::pair<size_t, void*> >::iterator it = d->budgets.begin();
+    std::list<std::pair<size_t, void*> >::iterator it = d->budgets.begin(), it_max = d->budgets.begin(), it_min = d->budgets.begin();
     for (; it != d->budgets.end(); ++it)
     {
         size_t bs = it->first;
@@ -266,6 +301,29 @@ void* UnlockedPoolAllocator::fastMalloc(size_t size)
             d->payouts.push_back(std::make_pair(bs, ptr));
 
             return ptr;
+        }
+
+        if (bs > it_max->first)
+        {
+            it_max = it;
+        }
+        if (bs < it_min->first)
+        {
+            it_min = it;
+        }
+    }
+
+    if (d->budgets.size() >= d->size_drop_threshold)
+    {
+        if (it_max->first < size)
+        {
+            ncnn::fastFree(it_min->second);
+            d->budgets.erase(it_min);
+        }
+        else if (it_min->first > size)
+        {
+            ncnn::fastFree(it_max->second);
+            d->budgets.erase(it_max);
         }
     }
 
@@ -298,253 +356,6 @@ void UnlockedPoolAllocator::fastFree(void* ptr)
     NCNN_LOGE("FATAL ERROR! unlocked pool allocator get wild %p", ptr);
     ncnn::fastFree(ptr);
 }
-
-#if NCNN_CUDA
-CudaAllocator::CudaAllocator(const CudaDevice* _cudev)
-{
-    cudev = _cudev;
-    checkCudaErrors(cudaSetDevice(cudev->device_index));
-}
-
-void* CudaAllocator::fastMalloc(size_t size)
-{
-    void* buffer = nullptr;
-    checkCudaErrors(cudaMalloc(&buffer, size));
-    return buffer;
-}
-
-void CudaAllocator::fastFree(void* ptr)
-{
-    checkCudaErrors(cudaFree(ptr));
-}
-
-std::shared_ptr<ncnn::CudaAllocator> get_current_gpu_allocator()
-{
-    return std::shared_ptr<ncnn::CudaAllocator>{new ncnn::CudaAllocator(ncnn::get_current_gpu_device())};
-}
-
-CudaPoolAllocator::CudaPoolAllocator(const CudaDevice* _cudev)
-    : CudaAllocator(_cudev)
-{
-    size_compare_ratio = 192; // 0.75f * 256
-}
-
-CudaPoolAllocator::~CudaPoolAllocator()
-{
-    clear();
-
-    if (!payouts.empty())
-    {
-        NCNN_LOGE("FATAL ERROR! cuda pool allocator destroyed too early");
-        std::list<std::pair<size_t, void*> >::iterator it = payouts.begin();
-        for (; it != payouts.end(); ++it)
-        {
-            void* ptr = it->second;
-            NCNN_LOGE("%p still in use", ptr);
-        }
-    }
-}
-
-void CudaPoolAllocator::clear()
-{
-    budgets_lock.lock();
-
-    std::list<std::pair<size_t, void*> >::iterator it = budgets.begin();
-    for (; it != budgets.end(); ++it)
-    {
-        void* ptr = it->second;
-        CudaAllocator::fastFree(ptr);
-    }
-    budgets.clear();
-
-    budgets_lock.unlock();
-}
-
-void CudaPoolAllocator::set_size_compare_ratio(float scr)
-{
-    if (scr < 0.f || scr > 1.f)
-    {
-        NCNN_LOGE("invalid size compare ratio %f", scr);
-        return;
-    }
-
-    size_compare_ratio = (unsigned int)(scr * 256);
-}
-
-void* CudaPoolAllocator::fastMalloc(size_t size)
-{
-    budgets_lock.lock();
-
-    // find free budget
-    std::list<std::pair<size_t, void*> >::iterator it = budgets.begin();
-    for (; it != budgets.end(); ++it)
-    {
-        size_t bs = it->first;
-
-        // size_compare_ratio ~ 100%
-        if (bs >= size && ((bs * size_compare_ratio) >> 8) <= size)
-        {
-            void* ptr = it->second;
-
-            budgets.erase(it);
-
-            budgets_lock.unlock();
-
-            payouts_lock.lock();
-
-            payouts.push_back(std::make_pair(bs, ptr));
-
-            payouts_lock.unlock();
-
-            return ptr;
-        }
-    }
-
-    budgets_lock.unlock();
-
-    // new
-    void* ptr = CudaAllocator::fastMalloc(size);
-
-    payouts_lock.lock();
-
-    payouts.push_back(std::make_pair(size, ptr));
-
-    payouts_lock.unlock();
-
-    return ptr;
-}
-
-void CudaPoolAllocator::fastFree(void* ptr)
-{
-    payouts_lock.lock();
-
-    // return to budgets
-    std::list<std::pair<size_t, void*> >::iterator it = payouts.begin();
-    for (; it != payouts.end(); ++it)
-    {
-        if (it->second == ptr)
-        {
-            size_t size = it->first;
-
-            payouts.erase(it);
-
-            payouts_lock.unlock();
-
-            budgets_lock.lock();
-
-            budgets.push_back(std::make_pair(size, ptr));
-
-            budgets_lock.unlock();
-
-            return;
-        }
-    }
-
-    payouts_lock.unlock();
-
-    NCNN_LOGE("FATAL ERROR! cuda pool allocator get wild %p", ptr);
-    CudaAllocator::fastFree(ptr);
-}
-
-
-
-
-CudaUnlockedPoolAllocator::CudaUnlockedPoolAllocator(const CudaDevice* _cudev): CudaAllocator(_cudev)
-{
-    size_compare_ratio = 192; // 0.75f * 256
-}
-
-CudaUnlockedPoolAllocator::~CudaUnlockedPoolAllocator()
-{
-    clear();
-
-    if (!payouts.empty())
-    {
-        NCNN_LOGE("FATAL ERROR! unlocked pool allocator destroyed too early");
-        std::list<std::pair<size_t, void*> >::iterator it = payouts.begin();
-        for (; it != payouts.end(); ++it)
-        {
-            void* ptr = it->second;
-            NCNN_LOGE("%p still in use", ptr);
-        }
-    }
-}
-
-void CudaUnlockedPoolAllocator::clear()
-{
-    std::list<std::pair<size_t, void*> >::iterator it = budgets.begin();
-    for (; it != budgets.end(); ++it)
-    {
-        void* ptr = it->second;
-        CudaAllocator::fastFree(ptr);
-    }
-    budgets.clear();
-}
-
-void CudaUnlockedPoolAllocator::set_size_compare_ratio(float scr)
-{
-    if (scr < 0.f || scr > 1.f)
-    {
-        NCNN_LOGE("invalid size compare ratio %f", scr);
-        return;
-    }
-
-    size_compare_ratio = (unsigned int)(scr * 256);
-}
-
-void* CudaUnlockedPoolAllocator::fastMalloc(size_t size)
-{
-    // find free budget
-    std::list<std::pair<size_t, void*> >::iterator it = budgets.begin();
-    for (; it != budgets.end(); ++it)
-    {
-        size_t bs = it->first;
-
-        // size_compare_ratio ~ 100%
-        if (bs >= size && ((bs * size_compare_ratio) >> 8) <= size)
-        {
-            void* ptr = it->second;
-
-            budgets.erase(it);
-
-            payouts.push_back(std::make_pair(bs, ptr));
-
-            return ptr;
-        }
-    }
-
-    // new
-    void* ptr = CudaAllocator::fastMalloc(size);
-
-    payouts.push_back(std::make_pair(size, ptr));
-
-    return ptr;
-}
-
-void CudaUnlockedPoolAllocator::fastFree(void* ptr)
-{
-    // return to budgets
-    std::list<std::pair<size_t, void*> >::iterator it = payouts.begin();
-    for (; it != payouts.end(); ++it)
-    {
-        if (it->second == ptr)
-        {
-            size_t size = it->first;
-
-            payouts.erase(it);
-
-            budgets.push_back(std::make_pair(size, ptr));
-
-            return;
-        }
-    }
-
-    NCNN_LOGE("FATAL ERROR! unlocked pool allocator get wild %p", ptr);
-    CudaAllocator::fastFree(ptr);
-}
-
-
-#endif
 
 #if NCNN_VULKAN
 VkAllocator::VkAllocator(const VulkanDevice* _vkdev)
@@ -2239,7 +2050,7 @@ int VkAndroidHardwareBufferImageAllocator::init()
     bufferProperties.sType = VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_PROPERTIES_ANDROID;
     bufferProperties.pNext = &bufferFormatProperties;
 
-    ret = vkGetAndroidHardwareBufferPropertiesANDROID(vkdev->vkdevice(), hb, &bufferProperties);
+    ret = vkdev->vkGetAndroidHardwareBufferPropertiesANDROID(vkdev->vkdevice(), hb, &bufferProperties);
     if (ret != VK_SUCCESS)
     {
         NCNN_LOGE("vkGetAndroidHardwareBufferPropertiesANDROID failed %d", ret);

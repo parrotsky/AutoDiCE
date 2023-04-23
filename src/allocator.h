@@ -28,10 +28,6 @@
 #include <vulkan/vulkan.h>
 #endif // NCNN_VULKAN
 
-#if NCNN_CUDA
-#include <memory>
-#endif // NCNN_VULKAN
-
 #if NCNN_PLATFORM_API
 #if __ANDROID_API__ >= 26
 #include <android/hardware_buffer.h>
@@ -40,19 +36,25 @@
 
 namespace ncnn {
 
-#if __AVX__
 // the alignment of all the allocated buffers
-#define MALLOC_ALIGN 32
+#if NCNN_AVX512
+#define NCNN_MALLOC_ALIGN 64
+#elif NCNN_AVX
+#define NCNN_MALLOC_ALIGN 32
 #else
-// the alignment of all the allocated buffers
-#define MALLOC_ALIGN 16
+#define NCNN_MALLOC_ALIGN 16
 #endif
+
+// we have some optimized kernels that may overread buffer a bit in loop
+// it is common to interleave next-loop data load with arithmetic instructions
+// allocating more bytes keeps us safe from SEGV_ACCERR failure
+#define NCNN_MALLOC_OVERREAD 64
 
 // Aligns a pointer to the specified number of bytes
 // ptr Aligned pointer
 // n Alignment size that must be a power of two
 template<typename _Tp>
-static inline _Tp* alignPtr(_Tp* ptr, int n = (int)sizeof(_Tp))
+static NCNN_FORCEINLINE _Tp* alignPtr(_Tp* ptr, int n = (int)sizeof(_Tp))
 {
     return (_Tp*)(((size_t)ptr + n - 1) & -n);
 }
@@ -61,33 +63,33 @@ static inline _Tp* alignPtr(_Tp* ptr, int n = (int)sizeof(_Tp))
 // The function returns the minimum number that is greater or equal to sz and is divisible by n
 // sz Buffer size to align
 // n Alignment size that must be a power of two
-static inline size_t alignSize(size_t sz, int n)
+static NCNN_FORCEINLINE size_t alignSize(size_t sz, int n)
 {
     return (sz + n - 1) & -n;
 }
 
-static inline void* fastMalloc(size_t size)
+static NCNN_FORCEINLINE void* fastMalloc(size_t size)
 {
 #if _MSC_VER
-    return _aligned_malloc(size, MALLOC_ALIGN);
+    return _aligned_malloc(size, NCNN_MALLOC_ALIGN);
 #elif (defined(__unix__) || defined(__APPLE__)) && _POSIX_C_SOURCE >= 200112L || (__ANDROID__ && __ANDROID_API__ >= 17)
     void* ptr = 0;
-    if (posix_memalign(&ptr, MALLOC_ALIGN, size))
+    if (posix_memalign(&ptr, NCNN_MALLOC_ALIGN, size + NCNN_MALLOC_OVERREAD))
         ptr = 0;
     return ptr;
 #elif __ANDROID__ && __ANDROID_API__ < 17
-    return memalign(MALLOC_ALIGN, size);
+    return memalign(NCNN_MALLOC_ALIGN, size + NCNN_MALLOC_OVERREAD);
 #else
-    unsigned char* udata = (unsigned char*)malloc(size + sizeof(void*) + MALLOC_ALIGN);
+    unsigned char* udata = (unsigned char*)malloc(size + sizeof(void*) + NCNN_MALLOC_ALIGN + NCNN_MALLOC_OVERREAD);
     if (!udata)
         return 0;
-    unsigned char** adata = alignPtr((unsigned char**)udata + 1, MALLOC_ALIGN);
+    unsigned char** adata = alignPtr((unsigned char**)udata + 1, NCNN_MALLOC_ALIGN);
     adata[-1] = udata;
     return adata;
 #endif
 }
 
-static inline void fastFree(void* ptr)
+static NCNN_FORCEINLINE void fastFree(void* ptr)
 {
     if (ptr)
     {
@@ -108,7 +110,7 @@ static inline void fastFree(void* ptr)
 // exchange-add operation for atomic operations on reference counters
 #if defined __riscv && !defined __riscv_atomic
 // riscv target without A extension
-static inline int NCNN_XADD(int* addr, int delta)
+static NCNN_FORCEINLINE int NCNN_XADD(int* addr, int delta)
 {
     int tmp = *addr;
     *addr += delta;
@@ -136,7 +138,7 @@ static inline int NCNN_XADD(int* addr, int delta)
 #define NCNN_XADD(addr, delta) (int)_InterlockedExchangeAdd((long volatile*)addr, delta)
 #else
 // thread-unsafe branch
-static inline int NCNN_XADD(int* addr, int delta)
+static NCNN_FORCEINLINE int NCNN_XADD(int* addr, int delta)
 {
     int tmp = *addr;
     *addr += delta;
@@ -144,7 +146,7 @@ static inline int NCNN_XADD(int* addr, int delta)
 }
 #endif
 #else  // NCNN_THREADS
-static inline int NCNN_XADD(int* addr, int delta)
+static NCNN_FORCEINLINE int NCNN_XADD(int* addr, int delta)
 {
     int tmp = *addr;
     *addr += delta;
@@ -168,8 +170,12 @@ public:
     ~PoolAllocator();
 
     // ratio range 0 ~ 1
-    // default cr = 0.75
+    // default cr = 0
     void set_size_compare_ratio(float scr);
+
+    // budget drop threshold
+    // default threshold = 10
+    void set_size_drop_threshold(size_t);
 
     // release all budgets immediately
     void clear();
@@ -193,8 +199,12 @@ public:
     ~UnlockedPoolAllocator();
 
     // ratio range 0 ~ 1
-    // default cr = 0.75
+    // default cr = 0
     void set_size_compare_ratio(float scr);
+
+    // budget drop threshold
+    // default threshold = 10
+    void set_size_drop_threshold(size_t);
 
     // release all budgets immediately
     void clear();
@@ -209,80 +219,6 @@ private:
 private:
     UnlockedPoolAllocatorPrivate* const d;
 };
-
-#if NCNN_CUDA
- 
-class CudaDevice;
- 
-class NCNN_EXPORT CudaAllocator  : public Allocator
-{
-public:
-    CudaAllocator(const CudaDevice* _cudev);
- 
-    virtual ~CudaAllocator() {
- 
-    }
- 
-    virtual void* fastMalloc(size_t size);
-    virtual void fastFree(void* ptr);
- 
-public:
-    const CudaDevice* cudev;
-};
- 
-std::shared_ptr<ncnn::CudaAllocator> get_current_gpu_allocator();
- 
-class NCNN_EXPORT CudaPoolAllocator : public CudaAllocator
-{
-public:
-    CudaPoolAllocator(const CudaDevice* _cudev);
-    ~CudaPoolAllocator();
- 
-    // ratio range 0 ~ 1
-    // default cr = 0.75
-    void set_size_compare_ratio(float scr);
- 
-    // release all budgets immediately
-    void clear();
- 
-    virtual void* fastMalloc(size_t size);
-    virtual void fastFree(void* ptr);
- 
-private:
-    Mutex budgets_lock;
-    Mutex payouts_lock;
-    unsigned int size_compare_ratio; // 0~256
-    std::list<std::pair<size_t, void*> > budgets;
-    std::list<std::pair<size_t, void*> > payouts;
-};    
- 
-class NCNN_EXPORT CudaUnlockedPoolAllocator : public CudaAllocator
-{
-public:
-    CudaUnlockedPoolAllocator(const CudaDevice* _cudev);
-    ~CudaUnlockedPoolAllocator();
- 
-    // ratio range 0 ~ 1
-    // default cr = 0.75
-    void set_size_compare_ratio(float scr);
- 
-    // release all budgets immediately
-    void clear();
- 
-    virtual void* fastMalloc(size_t size);
-    virtual void fastFree(void* ptr);
- 
-private:
-    unsigned int size_compare_ratio; // 0~256
-    std::list<std::pair<size_t, void*> > budgets;
-    std::list<std::pair<size_t, void*> > payouts;
-};
- 
-#endif
-
-
-
-
 
 #if NCNN_VULKAN
 

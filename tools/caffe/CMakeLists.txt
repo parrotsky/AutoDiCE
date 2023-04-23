@@ -1,5 +1,5 @@
 
-find_package(Protobuf REQUIRED)
+find_package(Protobuf)
 
 if(PROTOBUF_FOUND)
     protobuf_generate_cpp(CAFFE_PROTO_SRCS CAFFE_PROTO_HDRS caffe.proto)
@@ -12,6 +12,7 @@ if(PROTOBUF_FOUND)
 
     # add all caffe2ncnn tool to a virtual project group
     set_property(TARGET caffe2ncnn PROPERTY FOLDER "tools/converter")
+    ncnn_install_tool(caffe2ncnn)
 else()
     message(WARNING "Protobuf not found, caffe model convert tool won't be built")
 endif()

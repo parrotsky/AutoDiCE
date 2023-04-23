@@ -36,6 +36,8 @@ public:
     virtual Mat load(int w, int h, int type) const;
     // load dim
     virtual Mat load(int w, int h, int c, int type) const;
+    // load cube
+    virtual Mat load(int w, int h, int d, int c, int type) const;
 };
 
 class ModelBinFromDataReaderPrivate;
@@ -65,34 +67,13 @@ public:
 
     virtual Mat load(int w, int type) const;
 
-// private:
+private:
     ModelBinFromMatArray(const ModelBinFromMatArray&);
     ModelBinFromMatArray& operator=(const ModelBinFromMatArray&);
-
 
 private:
     ModelBinFromMatArrayPrivate* const d;
 };
-
-#if NCNN_CUDA
-class NCNN_EXPORT CudaModelBinFromDataReader : public ModelBinFromDataReader
-{
-public:
-    CudaModelBinFromDataReader(const DataReader& dr);
-    using ModelBinFromDataReader::load;
-};
-
-class NCNN_EXPORT CudaModelBinFromMatArray : public ModelBinFromMatArray
-{
-    // Class used to point model initialization
-    // for cuda layers
-    using ModelBinFromMatArray::ModelBinFromMatArray;
-};
-
-#endif
-
-
-
 
 } // namespace ncnn
 

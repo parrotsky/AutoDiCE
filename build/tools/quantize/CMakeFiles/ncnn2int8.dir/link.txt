@@ -1,0 +1,1 @@
+mpic++ -O3 -DNDEBUG -rdynamic CMakeFiles/ncnn2int8.dir/ncnn2int8.cpp.o -o ncnn2int8  ../../src/libncnn.a -lgomp -Wl,-Bstatic -lpthread -Wl,-Bdynamic 

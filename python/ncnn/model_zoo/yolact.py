@@ -17,7 +17,6 @@ import numpy as np
 import cv2
 import ncnn
 from .model_store import get_model_file
-from ..utils.objects import Detect_Object
 from ..utils.functional import sigmoid, nms
 
 
@@ -213,7 +212,7 @@ class Yolact:
                             w = scale * ar / self.target_size
                             h = scale / ar / self.target_size
 
-                            # This is for backward compatability with a bug where I made everything square by accident
+                            # This is for backward compatibility with a bug where I made everything square by accident
                             h = w
 
                             prior_data += [cx, cy, w, h]

@@ -50,7 +50,7 @@ Layer::Layer()
     support_image_storage = false;
     support_tensor_storage = false;
 
-    support_weight_fp16_storage = false;
+    support_reserved_00 = false;
 
     typeindex = -1;
 
@@ -122,41 +122,6 @@ int Layer::forward_inplace(Mat& /*bottom_top_blob*/, const Option& /*opt*/) cons
 {
     return -1;
 }
-
-#if NCNN_CUDA
-
-int Layer::load_model(const CudaModelBinFromMatArray& /*mb*/)
-{
-    return 0;
-}
-
-int Layer::forward(const std::vector<CudaMat>& /*bottom_blobs*/,
-                   std::vector<CudaMat>& /*top_blobs*/,
-                   const Option& /*opt*/) const
-{
-    return -1;
-}
-
-int Layer::forward(const CudaMat& /*bottom_blob*/,
-                   CudaMat& /*top_blob*/,
-                   const Option& /*opt*/) const
-{
-    return -1;
-}
-
-int Layer::forward_inplace(std::vector<CudaMat>& /*bottom_top_blobs*/,
-                           const Option& /*opt*/) const
-{
-    return -1;
-}
-
-int Layer::forward_inplace(CudaMat& /*bottom_top_blob*/, const Option& /*opt*/) const
-{
-    return -1;
-}
-
-
-#endif
 
 #if NCNN_VULKAN
 int Layer::upload_model(VkTransfer& /*cmd*/, const Option& /*opt*/)
@@ -233,35 +198,7 @@ int Layer::forward_inplace(VkImageMat& /*bottom_top_blob*/, VkCompute& /*cmd*/, 
 }
 #endif // NCNN_VULKAN
 
-static const layer_registry_entry layer_registry[] = {
 #include "layer_registry.h"
-};
-
-#if NCNN_RUNTIME_CPU && NCNN_AVX2
-static const layer_registry_entry layer_registry_avx2[] = {
-#include "layer_registry_avx2.h"
-};
-#endif // NCNN_RUNTIME_CPU && NCNN_AVX2
-
-#if NCNN_RUNTIME_CPU && NCNN_ARM82
-static const layer_registry_entry layer_registry_arm82[] = {
-#include "layer_registry_arm82.h"
-};
-#endif // NCNN_RUNTIME_CPU && NCNN_ARM82
-
-#if NCNN_RUNTIME_CPU && NCNN_RVV
-static const layer_registry_entry layer_registry_rvv[] = {
-#include "layer_registry_rvv.h"
-};
-#endif // NCNN_RUNTIME_CPU && NCNN_RVV
-
-
-#if NCNN_CUDA
-static const layer_registry_entry layer_registry_cuda[] = {
-#include "layer_registry_cuda.h"
-};
-#endif // NCNN_CUDA
-
 
 static const int layer_registry_entry_count = sizeof(layer_registry) / sizeof(layer_registry_entry);
 
@@ -295,33 +232,41 @@ Layer* create_layer(int index)
     // clang-format off
     // *INDENT-OFF*
     layer_creator_func layer_creator = 0;
-
-#if NCNN_CUDA
-    if (ncnn::get_cuda_gpu_count() > 0)
+#if NCNN_RUNTIME_CPU && NCNN_AVX512
+    if (ncnn::cpu_support_x86_avx512())
     {
-        layer_creator = layer_registry_cuda[index].creator;
-    }
-
-    if (layer_creator != 0) {
-        //cuda layer created, skip cpu layer creation
+        layer_creator = layer_registry_avx512[index].creator;
     }
     else
-#endif // NCNN_RUNTIME_CPU && NCNN_AVX2
-
-#if NCNN_RUNTIME_CPU && NCNN_AVX2
-    if (ncnn::cpu_support_x86_avx2())
+#endif// NCNN_RUNTIME_CPU && NCNN_AVX512
+#if NCNN_RUNTIME_CPU && NCNN_FMA
+    if (ncnn::cpu_support_x86_fma())
     {
-        layer_creator = layer_registry_avx2[index].creator;
+        layer_creator = layer_registry_fma[index].creator;
     }
     else
-#endif // NCNN_RUNTIME_CPU && NCNN_AVX2
-#if NCNN_RUNTIME_CPU && NCNN_ARM82
-    if (ncnn::cpu_support_arm_asimdhp())
+#endif// NCNN_RUNTIME_CPU && NCNN_FMA
+#if NCNN_RUNTIME_CPU && NCNN_AVX
+    if (ncnn::cpu_support_x86_avx())
     {
-        layer_creator = layer_registry_arm82[index].creator;
+        layer_creator = layer_registry_avx[index].creator;
     }
     else
-#endif // NCNN_RUNTIME_CPU && NCNN_ARM82
+#endif // NCNN_RUNTIME_CPU && NCNN_AVX
+#if NCNN_RUNTIME_CPU && NCNN_LSX
+    if (ncnn::cpu_support_loongarch_lsx())
+    {
+        layer_creator = layer_registry_lsx[index].creator;
+    }
+    else
+#endif // NCNN_RUNTIME_CPU && NCNN_LSX
+#if NCNN_RUNTIME_CPU && NCNN_MSA
+    if (ncnn::cpu_support_mips_msa())
+    {
+        layer_creator = layer_registry_msa[index].creator;
+    }
+    else
+#endif // NCNN_RUNTIME_CPU && NCNN_MSA
 #if NCNN_RUNTIME_CPU && NCNN_RVV
     if (ncnn::cpu_support_riscv_v())
     {

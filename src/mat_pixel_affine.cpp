@@ -1,4 +1,4 @@
-﻿// Tencent is pleased to support the open source community by making ncnn available.
+// Tencent is pleased to support the open source community by making ncnn available.
 //
 // Copyright (C) 2020 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -1600,9 +1600,18 @@ void warpaffine_bilinear_yuv420sp(const unsigned char* src, int srcw, int srch, 
     unsigned char* dstY = dst;
     warpaffine_bilinear_c1(srcY, srcw, srch, dstY, w, h, tm, type, v_y);
 
+    const float tm_uv[6] = {
+        tm[0],
+        tm[1],
+        tm[2] / 2.0f,
+        tm[3],
+        tm[4],
+        tm[5] / 2.0f,
+    };
+
     const unsigned char* srcUV = src + srcw * srch;
     unsigned char* dstUV = dst + w * h;
-    warpaffine_bilinear_c2(srcUV, srcw / 2, srch / 2, dstUV, w / 2, h / 2, tm, type, v_uv);
+    warpaffine_bilinear_c2(srcUV, srcw / 2, srch / 2, dstUV, w / 2, h / 2, tm_uv, type, v_uv);
 }
 #endif // NCNN_PIXEL_AFFINE
 

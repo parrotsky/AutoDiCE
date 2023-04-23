@@ -1,0 +1,1 @@
+mpic++ -O3 -DNDEBUG -rdynamic CMakeFiles/ncnnoptimize.dir/ncnnoptimize.cpp.o -o ncnnoptimize  ../src/libncnn.a -lgomp -Wl,-Bstatic -lpthread -Wl,-Bdynamic 

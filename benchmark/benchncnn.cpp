@@ -1,4 +1,4 @@
-﻿// Tencent is pleased to support the open source community by making ncnn available.
+// Tencent is pleased to support the open source community by making ncnn available.
 //
 // Copyright (C) 2018 THL A29 Limited, a Tencent company. All rights reserved.
 //
@@ -100,6 +100,9 @@ void benchmark(const char* comment, const ncnn::Mat& _in, const ncnn::Option& op
     DataReaderFromEmpty dr;
     net.load_model(dr);
 
+    const std::vector<const char*>& input_names = net.input_names();
+    const std::vector<const char*>& output_names = net.output_names();
+
     if (g_enable_cooling_down)
     {
         // sleep 10 seconds for cooling down SOC  :(
@@ -123,8 +126,8 @@ void benchmark(const char* comment, const ncnn::Mat& _in, const ncnn::Option& op
     for (int i = 0; i < g_warmup_loop_count; i++)
     {
         ncnn::Extractor ex = net.create_extractor();
-        ex.input("data", in);
-        ex.extract("output", out);
+        ex.input(input_names[0], in);
+        ex.extract(output_names[0], out);
     }
 
     double time_min = DBL_MAX;
@@ -137,8 +140,8 @@ void benchmark(const char* comment, const ncnn::Mat& _in, const ncnn::Option& op
 
         {
             ncnn::Extractor ex = net.create_extractor();
-            ex.input("data", in);
-            ex.extract("output", out);
+            ex.input(input_names[0], in);
+            ex.extract(output_names[0], out);
         }
 
         double end = ncnn::get_current_time();
@@ -154,103 +157,12 @@ void benchmark(const char* comment, const ncnn::Mat& _in, const ncnn::Option& op
 
     fprintf(stderr, "%20s  min = %7.2f  max = %7.2f  avg = %7.2f\n", comment, time_min, time_max, time_avg);
 }
-
-#if NCNN_CUDA
-void benchmark_cuda(const char* comment, ncnn::Mat _in, const ncnn::Option& opt)
-{
-    _in.fill(0.01f);
-
-    std::shared_ptr<ncnn::CudaAllocator> cuda_allocator = ncnn::get_current_gpu_allocator();
-
-    g_blob_pool_allocator.clear();
-    g_workspace_pool_allocator.clear();
-
-    ncnn::Net net;
-
-    net.opt = opt;
-
-#ifdef __EMSCRIPTEN__
-#define MODEL_DIR "/working/"
-#else
-#define MODEL_DIR ""
-#endif
-
-    char parampath[256];
-    sprintf(parampath, MODEL_DIR "%s.param", comment);
-    net.load_param(parampath);
-
-    DataReaderFromEmpty dr;
-    net.load_model(dr);
-
-    if (g_enable_cooling_down)
-    {
-        // sleep 10 seconds for cooling down SOC  :(
-#ifdef _WIN32
-        Sleep(10 * 1000);
-#elif defined(__unix__) || defined(__APPLE__)
-        sleep(10);
-#elif _POSIX_TIMERS
-        struct timespec ts;
-        ts.tv_sec = 10;
-        ts.tv_nsec = 0;
-        nanosleep(&ts, &ts);
-#else
-        // TODO How to handle it ?
-#endif
-    }
-
-    ncnn::CudaMat out_gpu;
-    ncnn::Mat out;
-    ncnn::CudaMat in_gpu;
-
-    void* gpu_buffer = cuda_allocator->fastMalloc(_in.total() * _in.elemsize);
-
-    // warm up
-    for (int i = 0; i < g_warmup_loop_count; i++)
-    {
-        in_gpu = ncnn::CudaMat{_in, cuda_allocator, gpu_buffer}; //include cpu->gpu and vice versa copy time to benchmark
-        ncnn::Extractor ex = net.create_extractor();
-        ex.input("data", in_gpu);
-        ex.extract("output", out_gpu);
-        out = out_gpu;
-    }
-
-    double time_min = DBL_MAX;
-    double time_max = -DBL_MAX;
-    double time_avg = 0;
-
-    for (int i = 0; i < g_loop_count; i++)
-    {
-        double start = ncnn::get_current_time();
-
-        {
-            in_gpu = ncnn::CudaMat{_in, cuda_allocator, gpu_buffer};
-            ncnn::Extractor ex = net.create_extractor();
-            ex.input("data", in_gpu);
-            ex.extract("output", out_gpu);
-            out = out_gpu;
-        }
-
-        double end = ncnn::get_current_time();
-
-        double time = end - start;
-
-        time_min = std::min(time_min, time);
-        time_max = std::max(time_max, time);
-        time_avg += time;
-    }
-
-    time_avg /= g_loop_count;
-
-    fprintf(stderr, "%20s  min = %7.2f  max = %7.2f  avg = %7.2f\n", comment, time_min, time_max, time_avg);
-}
-#endif
 
 int main(int argc, char** argv)
 {
     int loop_count = 4;
-    int num_threads = ncnn::get_cpu_count();
-    int powersave = 0;
+    int num_threads = ncnn::get_physical_big_cpu_count();
+    int powersave = 2;
     int gpu_device = -1;
     int cooling_down = 1;
 
@@ -287,8 +199,8 @@ int main(int argc, char** argv)
 
     g_loop_count = loop_count;
 
-    g_blob_pool_allocator.set_size_compare_ratio(0.0f);
-    g_workspace_pool_allocator.set_size_compare_ratio(0.5f);
+    g_blob_pool_allocator.set_size_compare_ratio(0.f);
+    g_workspace_pool_allocator.set_size_compare_ratio(0.f);
 
 #if NCNN_VULKAN
     if (use_vulkan_compute)
@@ -301,6 +213,11 @@ int main(int argc, char** argv)
         g_staging_vkallocator = new ncnn::VkStagingAllocator(g_vkdev);
     }
 #endif // NCNN_VULKAN
+
+    ncnn::set_cpu_powersave(powersave);
+
+    ncnn::set_omp_dynamic(0);
+    ncnn::set_omp_num_threads(num_threads);
 
     // default option
     ncnn::Option opt;
@@ -326,86 +243,11 @@ int main(int argc, char** argv)
     opt.use_shader_pack8 = false;
     opt.use_image_storage = false;
 
-    ncnn::set_cpu_powersave(powersave);
-
-    ncnn::set_omp_dynamic(0);
-    ncnn::set_omp_num_threads(num_threads);
-
-#if NCNN_CUDA
-    if (gpu_device == -1) gpu_device = 0;
-    opt.use_cuda_compute = true;
-    std::shared_ptr<ncnn::CudaAllocator> cuda_allocator = ncnn::get_current_gpu_allocator();
-    opt.blob_cuda_allocator = cuda_allocator;
-#endif
-
     fprintf(stderr, "loop_count = %d\n", g_loop_count);
     fprintf(stderr, "num_threads = %d\n", num_threads);
     fprintf(stderr, "powersave = %d\n", ncnn::get_cpu_powersave());
     fprintf(stderr, "gpu_device = %d\n", gpu_device);
     fprintf(stderr, "cooling_down = %d\n", (int)g_enable_cooling_down);
-
-#if NCNN_CUDA
-        // run cuda gpu benchmarks
-    benchmark_cuda("squeezenet", ncnn::Mat(227, 227, 3), opt);
-
-    benchmark_cuda("squeezenet_int8", ncnn::Mat(227, 227, 3), opt);
-
-    benchmark_cuda("mobilenet", ncnn::Mat(224, 224, 3), opt);
-
-    benchmark_cuda("mobilenet_int8", ncnn::Mat(224, 224, 3), opt);
-
-    benchmark_cuda("mobilenet_v2", ncnn::Mat(224, 224, 3), opt);
-
-    // benchmark("mobilenet_v2_int8", ncnn::Mat(224, 224, 3), opt);
-
-    benchmark_cuda("mobilenet_v3", ncnn::Mat(224, 224, 3), opt);
-
-    benchmark_cuda("shufflenet", ncnn::Mat(224, 224, 3), opt);
-
-    benchmark_cuda("shufflenet_v2", ncnn::Mat(224, 224, 3), opt);
-
-    benchmark_cuda("mnasnet", ncnn::Mat(224, 224, 3), opt);
-
-    benchmark_cuda("proxylessnasnet", ncnn::Mat(224, 224, 3), opt);
-
-    benchmark_cuda("efficientnet_b0", ncnn::Mat(224, 224, 3), opt);
-
-    benchmark_cuda("regnety_400m", ncnn::Mat(224, 224, 3), opt);
-
-    benchmark_cuda("blazeface", ncnn::Mat(128, 128, 3), opt);
-
-    benchmark_cuda("googlenet", ncnn::Mat(224, 224, 3), opt);
-
-    benchmark_cuda("googlenet_int8", ncnn::Mat(224, 224, 3), opt);
-
-    benchmark_cuda("resnet18", ncnn::Mat(224, 224, 3), opt);
-
-    benchmark_cuda("resnet18_int8", ncnn::Mat(224, 224, 3), opt);
-
-    benchmark_cuda("alexnet", ncnn::Mat(227, 227, 3), opt);
-
-    benchmark_cuda("vgg16", ncnn::Mat(224, 224, 3), opt);
-
-    benchmark_cuda("vgg16_int8", ncnn::Mat(224, 224, 3), opt);
-
-    benchmark_cuda("resnet50", ncnn::Mat(224, 224, 3), opt);
-
-    benchmark_cuda("resnet50_int8", ncnn::Mat(224, 224, 3), opt);
-
-    benchmark_cuda("squeezenet_ssd", ncnn::Mat(300, 300, 3), opt);
-
-    benchmark_cuda("squeezenet_ssd_int8", ncnn::Mat(300, 300, 3), opt);
-
-    benchmark_cuda("mobilenet_ssd", ncnn::Mat(300, 300, 3), opt);
-
-    benchmark_cuda("mobilenet_ssd_int8", ncnn::Mat(300, 300, 3), opt);
-
-    benchmark_cuda("mobilenet_yolo", ncnn::Mat(416, 416, 3), opt);
-
-    benchmark_cuda("mobilenetv2_yolov3", ncnn::Mat(352, 352, 3), opt);
-
-    benchmark_cuda("yolov4-tiny", ncnn::Mat(416, 416, 3), opt);
-#else
 
     // run
     benchmark("squeezenet", ncnn::Mat(227, 227, 3), opt);
@@ -431,6 +273,8 @@ int main(int argc, char** argv)
     benchmark("proxylessnasnet", ncnn::Mat(224, 224, 3), opt);
 
     benchmark("efficientnet_b0", ncnn::Mat(224, 224, 3), opt);
+
+    benchmark("efficientnetv2_b0", ncnn::Mat(224, 224, 3), opt);
 
     benchmark("regnety_400m", ncnn::Mat(224, 224, 3), opt);
 
@@ -467,8 +311,16 @@ int main(int argc, char** argv)
     benchmark("mobilenetv2_yolov3", ncnn::Mat(352, 352, 3), opt);
 
     benchmark("yolov4-tiny", ncnn::Mat(416, 416, 3), opt);
-#endif
 
+    benchmark("nanodet_m", ncnn::Mat(320, 320, 3), opt);
+
+    benchmark("yolo-fastest-1.1", ncnn::Mat(320, 320, 3), opt);
+
+    benchmark("yolo-fastestv2", ncnn::Mat(352, 352, 3), opt);
+
+    benchmark("vision_transformer", ncnn::Mat(384, 384, 3), opt);
+
+    benchmark("FastestDet", ncnn::Mat(352, 352, 3), opt);
 #if NCNN_VULKAN
     delete g_blob_vkallocator;
     delete g_staging_vkallocator;

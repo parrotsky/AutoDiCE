@@ -55,8 +55,6 @@ public:
     Mat bias_data;
 
 #if NCNN_INT8
-    float bottom_blob_int8_scale;
-    float top_blob_int8_scale;
     Mat weight_data_int8_scales;
     Mat bottom_blob_int8_scales;
 #endif

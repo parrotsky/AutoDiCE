@@ -58,11 +58,12 @@ public:
 #endif // NCNN_VULKAN
 
 #if NCNN_STRING
-    // register custom layer by layer type name
+    // register custom layer or overwrite built-in layer by layer type name
     // return 0 if success
     int register_custom_layer(const char* type, layer_creator_func creator, layer_destroyer_func destroyer = 0, void* userdata = 0);
+    virtual int custom_layer_to_index(const char* type);
 #endif // NCNN_STRING
-    // register custom layer by layer type
+    // register custom layer or overwrite built-in layer by layer type
     // return 0 if success
     int register_custom_layer(int index, layer_creator_func creator, layer_destroyer_func destroyer = 0, void* userdata = 0);
 
@@ -128,6 +129,14 @@ public:
     // construct an Extractor from network
     Extractor create_extractor() const;
 
+    // get input/output indexes/names
+    const std::vector<int>& input_indexes() const;
+    const std::vector<int>& output_indexes() const;
+#if NCNN_STRING
+    const std::vector<const char*>& input_names() const;
+    const std::vector<const char*>& output_names() const;
+#endif
+
     const std::vector<Blob>& blobs() const;
     const std::vector<Layer*>& layers() const;
 
@@ -139,10 +148,11 @@ protected:
 #if NCNN_STRING
     int find_blob_index_by_name(const char* name) const;
     int find_layer_index_by_name(const char* name) const;
-    virtual int custom_layer_to_index(const char* type);
     virtual Layer* create_custom_layer(const char* type);
+    virtual Layer* create_overwrite_builtin_layer(const char* type);
 #endif // NCNN_STRING
     virtual Layer* create_custom_layer(int index);
+    virtual Layer* create_overwrite_builtin_layer(int typeindex);
 
 private:
     Net(const Net&);
@@ -214,30 +224,6 @@ public:
     // type = 0, default
     // type = 1, do not convert fp16/bf16 or / and packing
     int extract(int blob_index, Mat& feat, int type = 0);
-
-#if NCNN_CUDA
-#if NCNN_STRING
-    // set input by blob name
-    // return 0 if success
-    int input(const char* blob_name, const CudaMat& in);
-
-    // get result by blob name
-    // return 0 if success
-    // type = 0, default
-    // type = 1, do not convert fp16/bf16 or / and packing
-    int extract(const char* blob_name, CudaMat& feat, int type = 0);
-#endif
-
-    // set input by blob index
-    // return 0 if success
-    int input(int blob_index, const CudaMat& in);
-
-    // get result by blob index
-    // return 0 if success
-    // type = 0, default
-    // type = 1, do not convert fp16/bf16 or / and packing
-    int extract(int blob_index, CudaMat& feat, int type = 0);
-#endif
 
 #if NCNN_VULKAN
 #if NCNN_STRING

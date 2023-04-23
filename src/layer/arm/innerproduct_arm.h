@@ -32,13 +32,17 @@ public:
     virtual int forward(const Mat& bottom_blob, Mat& top_blob, const Option& opt) const;
 
 protected:
-#if __ARM_FEATURE_FP16_VECTOR_ARITHMETIC
+#if (NCNN_VFPV4 && __ARM_NEON) || __aarch64__
     int create_pipeline_fp16s(const Option& opt);
     int forward_fp16s(const Mat& bottom_blob, Mat& top_blob, const Option& opt) const;
+#endif
+#if NCNN_ARM82
     int forward_fp16sa(const Mat& bottom_blob, Mat& top_blob, const Option& opt) const;
 #endif
+#if NCNN_BF16
     int create_pipeline_bf16s(const Option& opt);
     int forward_bf16s(const Mat& bottom_blob, Mat& top_blob, const Option& opt) const;
+#endif
 #if NCNN_INT8
     int create_pipeline_int8_arm(const Option& opt);
     int forward_int8_arm(const Mat& bottom_blob, Mat& top_blob, const Option& opt) const;
@@ -46,19 +50,14 @@ protected:
 
 public:
     Layer* flatten;
-    Layer* activation;
+
+    Mat weight_data_tm;
 
     // fp16
-    Mat weight_data_fp16;
     Mat bias_data_fp16;
 
-    // bf16
-    Mat weight_data_bf16;
-
 #if NCNN_INT8
-    // int8
-    Mat weight_data_int8;
-    Mat scales_in;
+    Mat scale_in_data;
 #endif
 };
 

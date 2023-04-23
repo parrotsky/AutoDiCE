@@ -55,6 +55,46 @@ static int test_deconvolution(int w, int h, int c, int outch, int kernel, int di
         fprintf(stderr, "test_deconvolution failed w=%d h=%d c=%d outch=%d kernel=%d dilation=%d stride=%d pad=%d bias=%d act=%d actparams=[%f,%f] output_pad_right=%d output_pad_bottom=%d output_w=%d output_h=%d\n", w, h, c, outch, kernel, dilation, stride, pad, bias, activation_type, activation_params[0], activation_params[1], output_pad_right, output_pad_bottom, output_w, output_h);
     }
 
+    {
+        ncnn::Option opt;
+        opt.num_threads = 1;
+        opt.use_packing_layout = true;
+        opt.use_fp16_packed = false;
+        opt.use_fp16_storage = false;
+        opt.use_fp16_arithmetic = false;
+        opt.use_bf16_storage = false;
+        opt.use_shader_pack8 = false;
+        opt.use_image_storage = false;
+        opt.use_sgemm_convolution = false;
+        opt.use_winograd_convolution = false;
+
+        ret = test_layer_opt<ncnn::Deconvolution>("Deconvolution", pd, weights, opt, a);
+        if (ret != 0)
+        {
+            fprintf(stderr, "test_deconvolution failed w=%d h=%d c=%d outch=%d kernel=%d dilation=%d stride=%d pad=%d bias=%d act=%d actparams=[%f,%f] output_pad_right=%d output_pad_bottom=%d output_w=%d output_h=%d\n", w, h, c, outch, kernel, dilation, stride, pad, bias, activation_type, activation_params[0], activation_params[1], output_pad_right, output_pad_bottom, output_w, output_h);
+        }
+    }
+
+    {
+        ncnn::Option opt;
+        opt.num_threads = 1;
+        opt.use_packing_layout = true;
+        opt.use_fp16_packed = true;
+        opt.use_fp16_storage = true;
+        opt.use_fp16_arithmetic = true;
+        opt.use_bf16_storage = true;
+        opt.use_shader_pack8 = true;
+        opt.use_image_storage = true;
+        opt.use_sgemm_convolution = false;
+        opt.use_winograd_convolution = false;
+
+        ret = test_layer_opt<ncnn::Deconvolution>("Deconvolution", pd, weights, opt, a);
+        if (ret != 0)
+        {
+            fprintf(stderr, "test_deconvolution failed w=%d h=%d c=%d outch=%d kernel=%d dilation=%d stride=%d pad=%d bias=%d act=%d actparams=[%f,%f] output_pad_right=%d output_pad_bottom=%d output_w=%d output_h=%d\n", w, h, c, outch, kernel, dilation, stride, pad, bias, activation_type, activation_params[0], activation_params[1], output_pad_right, output_pad_bottom, output_w, output_h);
+        }
+    }
+
     return ret;
 }
 
@@ -81,21 +121,34 @@ static int test_deconvolution_0()
 
     for (int i = 0; i < 16; i++)
     {
+        const int k = kdsp[i][0];
+        const int d = kdsp[i][1];
+        const int s = kdsp[i][2];
+        const int p = kdsp[i][3];
+
         int ret = 0
-                  || test_deconvolution(9, 7, 1, 1, kdsp[i][0], kdsp[i][1], kdsp[i][2], kdsp[i][3], 1, 0, 0, 0, 0)
-                  || test_deconvolution(9, 7, 4, 13, kdsp[i][0], kdsp[i][1], kdsp[i][2], kdsp[i][3], 0, 1, 1, 7, 5)
-                  || test_deconvolution(9, 7, 13, 4, kdsp[i][0], kdsp[i][1], kdsp[i][2], kdsp[i][3], 1, 1, 0, 0, 0)
-                  || test_deconvolution(9, 7, 4, 8, kdsp[i][0], kdsp[i][1], kdsp[i][2], kdsp[i][3], 0, 0, 1, 0, 0)
-                  || test_deconvolution(9, 7, 8, 4, kdsp[i][0], kdsp[i][1], kdsp[i][2], kdsp[i][3], 1, 0, 0, 7, 5)
-                  || test_deconvolution(9, 7, 8, 13, kdsp[i][0], kdsp[i][1], kdsp[i][2], kdsp[i][3], 0, 2, 2, 0, 0)
-                  || test_deconvolution(9, 7, 13, 8, kdsp[i][0], kdsp[i][1], kdsp[i][2], kdsp[i][3], 1, 2, 0, 0, 0)
-                  || test_deconvolution(9, 7, 16, 16, kdsp[i][0], kdsp[i][1], kdsp[i][2], kdsp[i][3], 0, 0, 2, 7, 5);
+                  || test_deconvolution(9, 7, 1, 1, k, d, s, p, 1, 0, 0, 0, 0)
+                  || test_deconvolution(9, 7, 4, 13, k, d, s, p, 0, 1, 1, 7, 5)
+                  || test_deconvolution(9, 7, 13, 4, k, d, s, p, 1, 1, 0, 0, 0)
+                  || test_deconvolution(9, 7, 4, 8, k, d, s, p, 0, 0, 1, 0, 0)
+                  || test_deconvolution(9, 7, 8, 4, k, d, s, p, 1, 0, 0, 7, 5)
+                  || test_deconvolution(7, 7, 12, 12, k, d, s, p, 1, 0, 1, 0, 0)
+                  || test_deconvolution(4, 5, 12, 11, k, d, s, p, 0, 0, 1, 1, 0)
+                  || test_deconvolution(9, 7, 8, 13, k, d, s, p, 0, 2, 2, 0, 0)
+                  || test_deconvolution(9, 7, 13, 8, k, d, s, p, 1, 2, 0, 0, 0)
+                  || test_deconvolution(9, 7, 16, 16, k, d, s, p, 0, 0, 2, 7, 5);
 
         if (ret != 0)
             return -1;
     }
 
-    return 0;
+    return 0
+           || test_deconvolution(7, 5, 24, 32, 4, 2, 2, 2, 1, 0, 0, 0, 0)
+           || test_deconvolution(7, 5, 32, 24, 4, 2, 2, 2, 1, 0, 0, 0, 0)
+           || test_deconvolution(7, 5, 28, 32, 4, 2, 2, 2, 1, 0, 0, 0, 0)
+           || test_deconvolution(7, 5, 32, 28, 4, 2, 2, 2, 1, 0, 0, 0, 0)
+           || test_deconvolution(7, 5, 26, 32, 4, 2, 2, 2, 1, 0, 0, 0, 0)
+           || test_deconvolution(7, 5, 32, 26, 4, 2, 2, 2, 1, 0, 0, 0, 0);
 }
 
 int main()

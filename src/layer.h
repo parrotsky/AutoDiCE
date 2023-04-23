@@ -21,13 +21,7 @@
 #include "paramdict.h"
 #include "platform.h"
 
-#include <memory>
-#include <iostream>
 #include <math.h>
-
-#if NCNN_MPI
-#include <mpi.h>
-#endif
 
 #if NCNN_VULKAN
 #include "command.h"
@@ -35,19 +29,6 @@
 
 #include <vulkan/vulkan.h>
 #endif // NCNN_VULKAN
-
-#if NCNN_CUDA
-#include "pipeline.h"
-#endif
-
-#if LOG_LAYERS
-#include <iostream>
-#include <string.h>
-#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
-
-#define LOGL(X)  std::cout << ">>>> " << __FILENAME__ << "(" << __LINE__ << ")::"<< __FUNCTION__ <<"                              "<< X << std::endl;
-
-#endif
 
 namespace ncnn {
 
@@ -103,10 +84,8 @@ public:
     // shader tensor storage
     bool support_tensor_storage;
 
-    // TODO drop these fields
-    bool support_weight_fp16_storage;
+    bool support_reserved_00;
 
-    bool support_cuda{false};
     bool support_reserved_0;
     bool support_reserved_1;
     bool support_reserved_2;
@@ -117,10 +96,9 @@ public:
     bool support_reserved_7;
     bool support_reserved_8;
     bool support_reserved_9;
-    bool support_reserved_10;
-    bool support_reserved_11;
-    bool support_reserved_12;
-    bool support_reserved_13;
+
+    // feature disabled set
+    int featmask;
 
 public:
     // implement inference
@@ -132,12 +110,6 @@ public:
     // return 0 if success
     virtual int forward_inplace(std::vector<Mat>& bottom_top_blobs, const Option& opt) const;
     virtual int forward_inplace(Mat& bottom_top_blob, const Option& opt) const;
-
-#if NCNN_MPI
-public:
-    int irank;
-    int nrank;
-#endif
 
 #if NCNN_VULKAN
 public:
@@ -169,19 +141,6 @@ public:
     // assigned immediately after creating this layer
     const VulkanDevice* vkdev;
 #endif // NCNN_VULKAN
-
-
-#if NCNN_CUDA
-    // assigned immediately after creating this layer
-    const CudaDevice* cudev;
-    virtual int load_model(const CudaModelBinFromMatArray& /*mb*/);
-    virtual int forward(const std::vector<CudaMat>& bottom_blobs, std::vector<CudaMat>& top_blobs, const Option& opt) const;
-    virtual int forward(const CudaMat& bottom_blob, CudaMat& top_blob, const Option& opt) const;
-
-    virtual int forward_inplace(std::vector<CudaMat>& bottom_top_blobs, const Option& opt) const;
-    virtual int forward_inplace(CudaMat& /*bottom_top_blob*/, const Option& /*opt*/) const;
-
-#endif
 
 public:
     // custom user data
@@ -223,6 +182,16 @@ struct custom_layer_registry_entry
     // layer type name
     const char* name;
 #endif // NCNN_STRING
+    // layer factory entry
+    layer_creator_func creator;
+    layer_destroyer_func destroyer;
+    void* userdata;
+};
+
+struct overwrite_builtin_layer_registry_entry
+{
+    // layer type index
+    int typeindex;
     // layer factory entry
     layer_creator_func creator;
     layer_destroyer_func destroyer;

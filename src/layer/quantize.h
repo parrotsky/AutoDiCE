@@ -33,7 +33,6 @@ public:
 public:
     int scale_data_size;
     Mat scale_data;
-    float scale;
 };
 
 } // namespace ncnn

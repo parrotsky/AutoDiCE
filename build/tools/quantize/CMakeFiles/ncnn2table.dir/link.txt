@@ -1,0 +1,1 @@
+mpic++ -O3 -DNDEBUG -rdynamic CMakeFiles/ncnn2table.dir/ncnn2table.cpp.o CMakeFiles/ncnn2table.dir/imreadwrite.cpp.o -o ncnn2table  ../../src/libncnn.a -lgomp -Wl,-Bstatic -lpthread -Wl,-Bdynamic 

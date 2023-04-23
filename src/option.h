@@ -17,14 +17,7 @@
 
 #include "platform.h"
 
-#include <memory>
-
 namespace ncnn {
-
-#if NCNN_CUDA
-    
-class CudaAllocator;
-#endif
 
 #if NCNN_VULKAN
 class VkAllocator;
@@ -53,15 +46,6 @@ public:
 
     // workspace memory allocator
     Allocator* workspace_allocator;
-
-#if NCNN_CUDA
-    // blob memory allocator
-    std::shared_ptr<ncnn::CudaAllocator> blob_cuda_allocator;
-
-    // workspace memory allocator
-    std::shared_ptr<ncnn::CudaAllocator> workspace_cuda_allocator;
-
-#endif // NCNN_CUDA
 
 #if NCNN_VULKAN
     // blob memory allocator
@@ -103,13 +87,9 @@ public:
     // enable vulkan compute
     bool use_vulkan_compute;
 
-    // enable cuda compute
-    bool use_cuda_compute;
-
     // enable bf16 data type for storage
     // improve most operator performance on all arm devices, may consume more memory
     bool use_bf16_storage;
-
 
     // enable options for gpu inference
     bool use_fp16_packed;
@@ -137,9 +117,7 @@ public:
     bool use_image_storage;
     bool use_tensor_storage;
 
-    // used for fp16 weight storage in AVX
-    // TODO drop this option
-    bool use_weight_fp16_storage;
+    bool use_reserved_0;
 
     // enable DAZ(Denormals-Are-Zero) and FTZ(Flush-To-Zero)
     // default value is 3
@@ -151,12 +129,21 @@ public:
 
     bool use_local_pool_allocator;
 
-    bool use_reserved_1;
-    bool use_reserved_2;
-    bool use_reserved_3;
-    bool use_reserved_4;
-    bool use_reserved_5;
-    bool use_reserved_6;
+    // enable local memory optimization for gpu inference
+    bool use_shader_local_memory;
+
+    // enable cooperative matrix optimization for gpu inference
+    bool use_cooperative_matrix;
+
+    // more fine-grained control of winograd convolution
+    bool use_winograd23_convolution;
+    bool use_winograd43_convolution;
+    bool use_winograd63_convolution;
+
+    // this option is turned on for A53/A55 automatically
+    // but you can force this on/off if you wish
+    bool use_a53_a55_optimized_kernel;
+
     bool use_reserved_7;
     bool use_reserved_8;
     bool use_reserved_9;
