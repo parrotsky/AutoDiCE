@@ -4,6 +4,7 @@
 
 # Update Log.
 Update. 2023 04 23 Add Arm support for HSplit operation (vulkan and cuda not support).
+
 Update  2023 02 23 Add Hsplit layer for horizontal partitioning.
 
 # Intro
