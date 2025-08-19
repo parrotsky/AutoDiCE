@@ -3,6 +3,7 @@
 # Open source
 
 # Update Log.
+Update. 2025 08 19 Add support for modify / split / partition onnx models using onnx-graphsurgeon package.
 Update. 2023 04 23 Add Arm support for HSplit operation (vulkan and cuda not support).
 
 Update  2023 02 23 Add Hsplit layer for horizontal partitioning.
